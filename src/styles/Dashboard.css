@@ -1,0 +1,34 @@
+/* src/styles/Dashboard.css */
+
+.dashboard-header {
+  margin-bottom: 20px;
+}
+
+.dashboard-header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+/* CSS Grid for Row 1 (6 cards, responsive) */
+.dashboard-grid {
+  display: grid;
+  /* This tells the browser: fit as many cards as possible, minimum 200px wide */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+/* Row 3 Grid */
+.row-3-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+@media (max-width: 1024px) {
+  .row-3-grid {
+    grid-template-columns: 1fr; /* Stack on smaller screens */
+  }
+}
