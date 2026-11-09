@@ -2,6 +2,10 @@
 import { useState } from 'react';
 import { ArrowLeft, Plus, Trash2, Paperclip } from 'lucide-react';
 import { Link } from 'react-router-dom';
+
+import {supabase} from '../lib/supabase';
+
+
 import '../styles/Forms.css';
 
 interface Witness {
@@ -16,6 +20,18 @@ export default function LogIncident() {
   const [incidentType, setIncidentType] = useState('');
   const [severity, setSeverity] = useState('low');
   const [reportedToRegulator, setReportedToRegulator] = useState('no');
+
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [reporterName, setReporterName] = useState('');
+  const [reporterRole, setReporterRole] = useState('');
+  const [description, setDescription] = useState('');
+  const [site, setSite] = useState('');
+  const [area, setArea] = useState('');
+  const [activity, setActivity] = useState('');
+  const [immediateAction, setImmediateAction] = useState('');
+  const [regulatorRef, setRegulatorRef] = useState('');
+  const [regulatorTime, setRegulatorTime] = useState('');
   
   // --- VEHICLE STATE ---
   const [vehicleAffiliation, setVehicleAffiliation] = useState('company');
@@ -55,6 +71,78 @@ export default function LogIncident() {
   const attachmentsSectionNumber = isSpecificDetailsVisible ? 5 : 4;
 
 
+    const handleSave = async () => {
+    // 1. Basic Validation
+        // 1. Basic Validation
+    if (!incidentType || !date || !time || !description) {
+      alert("Please fill in required fields: Type, Date, Time, and Description.");
+      return;
+    }
+
+    // 2. Witness Phone Validation (Must be exactly 10 digits if filled)
+    for (const witness of witnesses) {
+      if (witness.contact && witness.contact.length !== 10) {
+        alert(`Please enter a valid 10-digit phone number for witness: ${witness.name || 'Unnamed'}`);
+        return; // Stops the save process
+      }
+    }
+    
+
+
+
+    try {
+      // 2. Save the main incident to Supabase
+      const { data: incidentData, error: incidentError } = await supabase
+        .from('incidents')
+        .insert([
+          {
+            incident_type: incidentType,
+            date_of_occurrence: date,
+            time_of_occurrence: time,
+            severity: severity,
+            reporter_name: reporterName,
+            reporter_role: reporterRole,
+            description: description,
+            site: site,
+            area: area,
+            activity: activity,
+            immediate_action: immediateAction,
+            reported_to_regulator: reportedToRegulator,
+            regulator_notified_time: regulatorTime || null,
+            regulator_ref_number: regulatorRef
+          }
+        ])
+        .select()
+        .single();
+
+      if (incidentError) throw incidentError;
+
+      // 3. Save the Witnesses (if any were added)
+      if (witnesses.length > 0) {
+        const witnessData = witnesses.map(w => ({
+          incident_id: incidentData.id, // Link to the incident we just created
+          name: w.name,
+          contact: w.contact,
+          statement: w.statement
+        }));
+        
+        const { error: witnessError } = await supabase
+          .from('incident_witnesses')
+          .insert(witnessData);
+          
+        if (witnessError) throw witnessError;
+      }
+
+      // 4. Success message and redirect
+      alert("Incident saved successfully!");
+      window.location.href = '/incidents'; 
+
+    } catch (error: any) {
+      alert("Error saving incident: " + error.message);
+    }
+  };
+
+
 
   return (
     <div>
@@ -70,7 +158,9 @@ export default function LogIncident() {
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <Link to="/incidents" className="btn-secondary">Cancel</Link>
-          <button className="btn-primary">Save Incident</button>
+          <button className="btn-primary" onClick={handleSave}>
+            Save Incident
+          </button>
         </div>
       </div>
 
@@ -96,12 +186,14 @@ export default function LogIncident() {
 
           <div className="form-group">
             <label>Date of Occurrence *</label>
-            <input type="date" className="form-input" />
+
+            <input type="date" className="form-input" value={date} onChange={(e) => setDate(e.target.value)} />
+
           </div>
 
           <div className="form-group">
             <label>Time of Occurrence *</label>
-            <input type="time" className="form-input" />
+            <input type="time" className="form-input" value={time} onChange={(e) => setTime(e.target.value)} />
           </div>
 
           <div className="form-group">
@@ -117,18 +209,18 @@ export default function LogIncident() {
 
           <div className="form-group">
             <label>Reporter Name *</label>
-            <input type="text" className="form-input" placeholder="Who is reporting this?" />
+            <input type="text" className="form-input" value={reporterName} onChange={(e) => setReporterName(e.target.value)} placeholder="Who is reporting this?" />
           </div>
 
           <div className="form-group">
             <label>Reporter Role / Company</label>
-            <input type="text" className="form-input" placeholder="e.g., Site Supervisor - ABC Ltd" />
+            <input type="text" className="form-input" value={reporterRole} onChange={(e) => setReporterRole(e.target.value)} placeholder="e.g., Site Supervisor - JJ Ltd" />
           </div>
         </div>
 
         <div className="form-group" style={{ marginTop: '16px' }}>
-          <label>Description of Event *</label>
-          <textarea className="form-input" rows={4} placeholder="What happened? Describe the sequence of events..."></textarea>
+          <label>Describe what really happened *</label>
+          <textarea className="form-input" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What happened? Describe the sequence of events. Do not includes anybody's name..."></textarea>
         </div>
 
         {/* SECTION 2: LOCATION & PEOPLE */}
@@ -136,7 +228,7 @@ export default function LogIncident() {
         <div className="form-grid">
           <div className="form-group">
             <label>Site *</label>
-            <select className="form-input">
+            <select className="form-input" value={site} onChange={(e) => setSite(e.target.value)}>
               <option value="">Select Site...</option>
               <option value="podium">Podium Zone</option>
               <option value="tower">Main Tower</option>
@@ -145,7 +237,7 @@ export default function LogIncident() {
 
           <div className="form-group">
             <label>Area / Location Detail *</label>
-            <input type="text" className="form-input" placeholder="e.g., Level 3 - Column B4" />
+            <input type="text" className="form-input" value={area} onChange={(e) => setArea(e.target.value)} placeholder="e.g., Level 3 - Column B4" />
           </div>
 
           <div className="form-group">
@@ -158,7 +250,7 @@ export default function LogIncident() {
 
           <div className="form-group">
             <label>Activity / Task at Time of Incident</label>
-            <input type="text" className="form-input" placeholder="e.g., Welding rebar couplers" />
+            <input type="text" className="form-input" value={activity} onChange={(e) => setActivity(e.target.value)} placeholder="e.g., Welding rebar couplers or walking casually" />
           </div>
         </div>
 
@@ -176,7 +268,25 @@ export default function LogIncident() {
           {witnesses.map((witness) => (
             <div key={witness.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr auto', gap: '12px', marginBottom: '12px', alignItems: 'start' }}>
               <input type="text" className="form-input" placeholder="Name" value={witness.name} onChange={(e) => updateWitness(witness.id, 'name', e.target.value)} />
-              <input type="text" className="form-input" placeholder="Contact" value={witness.contact} onChange={(e) => updateWitness(witness.id, 'contact', e.target.value)} />
+
+
+              <input 
+                type="tel" 
+                className="form-input" 
+                placeholder="10-digit Contact" 
+                value={witness.contact} 
+                onChange={(e) => {
+                  // Remove any non-digit characters (like letters or dashes)
+                  const numericValue = e.target.value.replace(/\D/g, '');
+                  // Only update if it's 10 digits or less
+                  if (numericValue.length <= 10) {
+                    updateWitness(witness.id, 'contact', numericValue);
+                  }
+                }} 
+              />             
+
+
+
               <input type="text" className="form-input" placeholder="Brief statement" value={witness.statement} onChange={(e) => updateWitness(witness.id, 'statement', e.target.value)} />
               <button type="button" onClick={() => removeWitness(witness.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: '10px' }}>
                 <Trash2 size={18} />
@@ -369,7 +479,9 @@ export default function LogIncident() {
         
         <div className="form-group">
           <label>Immediate Action Taken *</label>
-          <textarea className="form-input" rows={3} placeholder="What was done immediately? (e.g., Area cordoned off, first aid given)"></textarea>
+
+          <textarea className="form-input" rows={3} placeholder="What was done immediately? (e.g., Area cordoned off, first aid given)" value={immediateAction} onChange={(e) => setImmediateAction(e.target.value)}></textarea>
+
         </div>
 
         <div className="form-grid" style={{ marginTop: '16px' }}>
@@ -386,11 +498,12 @@ export default function LogIncident() {
             <>
               <div className="form-group">
                 <label>Regulator Notified Time</label>
-                <input type="datetime-local" className="form-input" />
+                <input type="datetime-local" className="form-input" value={regulatorTime} onChange={(e) => setRegulatorTime(e.target.value)} />
               </div>
+
               <div className="form-group">
                 <label>Report Reference Number</label>
-                <input type="text" className="form-input" />
+                <input type="text" className="form-input" value={regulatorRef} onChange={(e) => setRegulatorRef(e.target.value)} />
               </div>
             </>
           )}
