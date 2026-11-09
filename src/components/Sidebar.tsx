@@ -1,8 +1,11 @@
 // src/components/Sidebar.tsx
 import { LayoutDashboard, AlertTriangle, ClipboardCheck, ShieldAlert, BookOpen } from 'lucide-react';
-import '../styles/Sidebar.css'; // We will create this next
+import { Link, useLocation } from 'react-router-dom';
+import '../styles/Sidebar.css';
 
 export default function Sidebar() {
+  const location = useLocation(); // Tells us what the current URL is
+
   return (
     <div className="sidebar">
       <div className="sidebar-logo">
@@ -11,14 +14,19 @@ export default function Sidebar() {
       </div>
 
       <nav className="sidebar-nav">
-        <a href="#" className="nav-item active">
+        {/* Dashboard Link */}
+        <Link to="/" className={`nav-item ${location.pathname === '/' ? 'active' : ''}`}>
           <LayoutDashboard size={20} />
           <span>Dashboard</span>
-        </a>
-        <a href="#" className="nav-item">
+        </Link>
+
+        {/* Incidents Link */}
+        <Link to="/incidents" className={`nav-item ${location.pathname === '/incidents' ? 'active' : ''}`}>
           <AlertTriangle size={20} />
           <span>Incidents</span>
-        </a>
+        </Link>
+
+        {/* Placeholders for later */}
         <a href="#" className="nav-item">
           <ClipboardCheck size={20} />
           <span>Inspections</span>
