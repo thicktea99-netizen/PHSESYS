@@ -12,7 +12,7 @@ const data = [
   { month: 'Oct', totalHours: 6200, safeHours: 6200 },
 ];
 
-export default function ManHoursChart() {
+export default function ManHoursChart({ data }: { data: any[] }) {
   return (
     <div className="chart-card">
       <div className="chart-header">

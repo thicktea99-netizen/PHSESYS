@@ -1,0 +1,29 @@
+
+
+/* src/styles/IncidentDetail.css */
+
+.witness-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.witness-detail-card {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background-color: #f9fafb;
+}
+
+.witness-detail-card h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--primary);
+}
+
+.witness-detail-card p {
+  font-size: 0.875rem;
+  margin-bottom: 4px;
+  color: var(--text-main);
+}

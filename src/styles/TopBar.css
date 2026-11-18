@@ -26,3 +26,110 @@
   font-weight: 500;
   color: var(--text-muted);
 }
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.emergency-bell {
+  position: relative;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  color: var(--danger);
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+
+.emergency-bell:hover {
+  background: var(--danger);
+  color: #fff;
+  
+  transform: scale(1.1)
+}
+
+.emergency-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 10px;
+  height: 10px;
+  background-color: var(--danger);
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  animation: pulse 1.5s infinite;
+}
+
+
+/* Custom Tooltip */
+.emergency-bell {
+  position: relative; /* Ensure the tooltip is positioned relative to the button */
+}
+
+.tooltip-text {
+  visibility: hidden;
+  opacity: 0.3;
+  width: auto;
+  background-color: var(--danger);
+  color: #ffffff;
+  text-align: center;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  
+  /* Position the tooltip */
+  position: absolute;
+  z-index: 100;
+  top: 120%; /* Below the bell */
+  left: 50%;
+  transform: translateX(-50%);
+  
+  /* Transition */
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+/* Small arrow pointing up */
+.tooltip-text::after {
+  content: "";
+  position: absolute;
+  bottom: 100%; /* At the top of the tooltip */
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  color: var(--danger);
+  border-color: transparent transparent var(--danger) transparent;
+}
+
+/* Show tooltip on hover */
+.emergency-bell:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+
+
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+

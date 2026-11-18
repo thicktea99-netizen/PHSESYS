@@ -1,0 +1,130 @@
+/* src/styles/Documents.css */
+
+.doc-toolbar {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.search-box {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+}
+
+.search-box input {
+  width: 100%;
+  padding: 10px 12px 10px 40px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-family: inherit;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.doc-group {
+  margin-bottom: 32px;
+}
+
+.doc-group-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.doc-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.doc-item:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.doc-item.pinned {
+  background-color: #fffbeb;
+  border-color: #fde68a;
+}
+
+.doc-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.doc-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.doc-title-row h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.doc-type {
+  font-size: 0.65rem;
+  font-weight: 600;
+  background-color: #e5e7eb;
+  color: #4b5563;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.doc-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-left: 28px;
+}
+
+.doc-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pin-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #d1d5db;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.pin-btn:hover, .pin-btn.active {
+  color: #f59e0b;
+}

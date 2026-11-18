@@ -1,0 +1,113 @@
+
+
+/* src/styles/LogIncident.css */
+
+/* Witness Section */
+.witness-container {
+  margin-top: 24px;
+  padding: 16px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.witness-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.witness-header h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.no-witnesses {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.witness-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr auto;
+  gap: 12px;
+  margin-bottom: 12px;
+  align-items: start;
+}
+
+/* Dynamic Sections */
+.dynamic-section {
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.bg-red { background-color: #fef2f2; border-color: #fecaca; }
+.bg-blue { background-color: #eff6ff; border-color: #bfdbfe; }
+.bg-yellow { background-color: #fefce8; border-color: #fef08a; }
+.bg-green { background-color: #ecfdf5; border-color: #a7f3d0; }
+.bg-purple { background-color: #f5f3ff; border-color: #ddd6fe; }
+
+/* Radio & Checkbox Groups */
+.radio-group {
+  display: flex;
+  gap: 20px;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.checkbox-row {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.checkbox-row label {
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+/* File Upload Area */
+.upload-container {
+  padding: 24px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  text-align: center;
+}
+
+.upload-label {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-text {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--primary);
+}
+
+.upload-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Utility Classes */
+.border-top-blue { border-top: 1px solid #bfdbfe; }
+.pt-16 { padding-top: 16px; }
+
+

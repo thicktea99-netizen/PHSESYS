@@ -14,7 +14,8 @@
 .dashboard-grid {
   display: grid;
   /* This tells the browser: fit as many cards as possible, minimum 200px wide */
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  /* grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); */
+  grid-template-columns: repeat(6,1fr);
   gap: 16px;
   margin-bottom: 32px;
 }
@@ -103,7 +104,8 @@
 }
 
 .data-table tbody tr:hover {
-  background-color: #f9fafb; /* Highlight row on hover */
+  background-color: #f3f4f6; /* Highlight row on hover */
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 .font-medium {
@@ -113,10 +115,12 @@
 /* --- Badges (for Severity and Status) --- */
 .badge {
   display: inline-block;
-  padding: 4px 10px;
-  border-radius: 9999px;
-  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.65rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* Severity Colors */
@@ -132,8 +136,148 @@
 .status-actions-pending { background-color: #fef3c7; color: #92400e; }
 
 
+/* --- Specific Status Colors for CAPA --- */
+.status-open { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; }
+.status-in-progress { background-color: rgba(245, 158, 11, 0.1); color: #d97706; }
+.status-done { background-color: rgba(59, 130, 246, 0.1); color: #2563eb; }
+.status-verified { background-color: rgba(16, 185, 129, 0.1); color: #059669; }
+
+
+/* Custom Select Dropdown for Tables */
+.table-select {
+  border: none;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  padding: 2px 24px 2px 8px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  
+  /* The custom arrow */
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 10px;
+}
+
+/* Ensure the text color matches the status colors we made earlier */
+.status-open.table-select { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; }
+.status-in-progress.table-select { background-color: rgba(245, 158, 11, 0.1); color: #d97706; }
+.status-done.table-select { background-color: rgba(59, 130, 246, 0.1); color: #2563eb; }
+.status-verified.table-select { background-color: rgba(16, 185, 129, 0.1); color: #059669; }
+
+
+/* Dropdown Menu */
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background-color: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  width: 250px;
+  z-index: 50;
+  overflow: hidden;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  color: var(--text-main);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
+  cursor: pointer;
+}
+
+.dropdown-item:hover {
+  background-color: #f9fafb;
+  color: var(--primary);
+}
+
+/* Compact KPI Row */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.kpi-compact-card {
+  background-color: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-compact-card h4 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.kpi-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.kpi-sub {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+
+.row-3-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+
+
+
+/* Responsive: 3 columns on tablets, 2 on mobile */
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+
+
+
+
 @media (max-width: 1024px) {
   .row-3-grid {
     grid-template-columns: 1fr; /* Stack on smaller screens */
+  }
+
+  .kpi-row {
+    grid-template-columns: repeat(2, 1fr);
   }
 }

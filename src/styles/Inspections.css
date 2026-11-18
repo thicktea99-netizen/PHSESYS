@@ -1,0 +1,22 @@
+
+
+.clickable-row {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.status-open.table-select { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; }
+.status-closed.table-select { background-color: rgba(16, 185, 129, 0.1); color: #059669; }
+
+.status-active.table-select { background-color: rgba(16, 185, 129, 0.1); color: #059669; }
+.status-expired.table-select { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+
+.status-active.table-select { background-color: rgba(16, 185, 129, 0.1); color: #059669; }
+.status-suspended.table-select { background-color: rgba(245, 158, 11, 0.1); color: #d97706; }
+.status-extended.table-select { background-color: rgba(59, 130, 246, 0.1); color: #2563eb; }
+.status-expired.table-select { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+.status-open.table-select { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; }
+.status-actions-pending.table-select { background-color: rgba(245, 158, 11, 0.1); color: #d97706; }
+.status-closed.table-select { background-color: rgba(16, 185, 129, 0.1); color: #059669; }

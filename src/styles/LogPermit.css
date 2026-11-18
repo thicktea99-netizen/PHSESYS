@@ -1,0 +1,25 @@
+/* src/styles/LogPermit.css */
+
+/* Specific spacing for the checkbox rows in permits */
+.checkbox-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.checkbox-row label {
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  background-color: #f9fafb;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.checkbox-row input[type="checkbox"] {
+  accent-color: var(--primary);
+}

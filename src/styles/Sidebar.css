@@ -26,6 +26,8 @@
   flex-direction: column;
   padding: 16px 12px;
   gap: 4px;
+  flex: 1; /* Allows the settings link to be pushed to the bottom */
+  overflow-y: auto;
 }
 
 .nav-item {
@@ -38,6 +40,12 @@
   border-radius: 6px;
   font-weight: 500;
   transition: all 0.2s ease;
+  background: none;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-family: inherit;
 }
 
 .nav-item:hover {
@@ -46,6 +54,38 @@
 }
 
 .nav-item.active {
+  background-color: rgba(37, 99, 235, 0.1);
+  color: var(--primary);
+}
+
+/* Group Headers */
+.group-header {
+  justify-content: flex-start;
+}
+
+.active-group {
+  color: #ffffff;
+  background-color: rgba(37, 99, 235, 0.15); /* A subtle blue background */
+}
+
+/* Sub-groups */
+.nav-sub-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 12px;
+  margin-top: 4px;
+  margin-bottom: 8px;
+  border-left: 1px solid #374151; /* A subtle line to show hierarchy */
+  margin-left: 20px;
+}
+
+.nav-sub-group .nav-item {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+
+.nav-sub-group .nav-item.active {
   background-color: rgba(37, 99, 235, 0.1);
   color: var(--primary);
 }

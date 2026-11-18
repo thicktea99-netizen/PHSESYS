@@ -1,0 +1,48 @@
+
+
+/* src/styles/InspectionDetail.css */
+
+.mb-24 { margin-bottom: 24px; }
+.mt-8 { margin-top: 8px; }
+
+.no-findings-success {
+  color: var(--success);
+  font-weight: 500;
+}
+
+.findings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.finding-detail-card {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.finding-detail-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.finding-detail-header h4 {
+  font-weight: 600;
+}
+
+.finding-text {
+  font-size: 0.875rem;
+  margin-bottom: 8px;
+}
+
+.finding-photo {
+  margin-top: 12px;
+}
+
+.finding-photo img {
+  max-width: 200px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}

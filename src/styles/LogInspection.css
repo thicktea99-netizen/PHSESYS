@@ -1,0 +1,132 @@
+
+
+/* src/styles/LogInspection.css */
+
+.findings-container {
+  margin-top: 32px;
+  padding: 20px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.findings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.findings-header h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.findings-header p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.no-findings {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.finding-card {
+  background-color: #ffffff;
+  padding: 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.finding-card-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.finding-card-header h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.finding-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.text-danger {
+  color: var(--danger) !important;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.file-upload-label {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Sticky Action Bar */
+
+
+/* Sticky Action Bar - Single Source of Truth */
+.sticky-action-bar {
+  position: fixed;
+  bottom: 50px;
+  right: 24px;
+  background-color: #ffffff;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 50px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 10;
+  width: auto;
+}
+
+.sticky-action-bar .btn-primary,
+.sticky-action-bar .btn-secondary {
+  padding: 8px 16px;
+  font-size: 0.8rem;
+  border-radius: 50px;
+}
+
+/* .sticky-action-bar .btn-primary, */
+.sticky-action-bar .btn-secondary:hover {
+  opacity: 0.6;
+  transform: translateY(-1px);
+}

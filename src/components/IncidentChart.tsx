@@ -2,39 +2,52 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import '../styles/Charts.css';
 
-// Mock data for now (we will connect this to Supabase later)
-const data = [
-  { name: 'Near Miss', count: 2, color: '#3b82f6' },
-  { name: 'First Aid', count: 1, color: '#f59e0b' },
-  { name: 'LTI', count: 0, color: '#ef4444' },
-  { name: 'Property Damage', count: 1, color: '#8b5cf6' },
-  { name: 'Environmental', count: 0, color: '#10b981' },
-];
+export default function IncidentChart({ data }: { data: any[] }) {
+  const COLORS = ['#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#10b981', '#ec4899', '#06b6d4'];
 
-export default function IncidentChart() {
+  // Helper to shorten long labels
+  const shortenLabel = (label: string) => {
+    if (label.length > 12) {
+      return label.substring(0, 10) + '...';
+    }
+    return label;
+  };
+
   return (
     <div className="chart-card">
       <div className="chart-header">
         <h3>Incident Breakdown</h3>
-        <span className="chart-subtitle">This Week</span>
+        <span className="chart-subtitle">This Period</span>
       </div>
       <div style={{ width: '100%', height: 280 }}>
-        <ResponsiveContainer>
-          <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
-            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} allowDecimals={false} />
-            <Tooltip 
-              cursor={{ fill: 'transparent' }} 
-              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
-            />
-            <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        {data.length === 0 ? (
+          <p style={{ textAlign: 'center', paddingTop: '100px', color: 'var(--text-muted)' }}>No incidents recorded.</p>
+        ) : (
+          <ResponsiveContainer>
+            <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+              <XAxis 
+                dataKey="name" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 10, fill: '#6b7280' }} 
+                tickFormatter={shortenLabel}
+                interval={0}
+              />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} allowDecimals={false} />
+              <Tooltip 
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} 
+                formatter={(value:any) => [`${value}`,'Count']}
+                
+              />
+              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                {data.map((_, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   );

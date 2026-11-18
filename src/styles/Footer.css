@@ -1,0 +1,23 @@
+/* src/styles/Footer.css */
+
+.app-footer {
+  position: fixed;
+  bottom: 0;
+  left: 260px;
+  right: 0;
+  background: #fff;
+  text-align: center;
+  padding: 24px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  margin-top: 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+}
+
+.app-footer strong {
+  color: var(--primary);
+}

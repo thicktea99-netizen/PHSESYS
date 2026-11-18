@@ -1,0 +1,78 @@
+/* src/styles/RiskAssessment.css */
+
+.step-card {
+  padding: 20px;
+  background-color: #f9fafb;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.step-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.step-header h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.hazards-container {
+  padding: 16px;
+  background-color: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.hazards-container h5 {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.hazard-card {
+  padding: 16px;
+  background-color: #f9fafb;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 16px;
+  margin-top: 12px;
+}
+
+.finding-card-header h6 {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.risk-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.risk-block {
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.risk-block h5 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.bg-red { background-color: #fef2f2; border-color: #fecaca; }
+.bg-green { background-color: #ecfdf5; border-color: #a7d3bb; }
+
+@media (max-width: 768px) {
+  .risk-row {
+    grid-template-columns: 1fr;
+  }
+}
