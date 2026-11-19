@@ -1,7 +1,3 @@
-
-
-
-
 // src/pages/Settings.tsx
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Settings as SettingsIcon } from 'lucide-react';
@@ -20,6 +16,9 @@ interface Site {
   first_aider_present: boolean;
 }
 interface Option { id: string; option_value: string; }
+interface Target { id: string; indicator_key: string; indicator_label: string; target_value: number; unit: string; }
+interface AlertConfig { id: string; alert_key: string; alert_label: string; is_active: boolean; }
+interface ActivityConfig { id: string; module_key: string; module_label: string; is_active: boolean; }
 
 const CATEGORIES = [
   { key: 'incident_type', label: 'Incident Types' },
@@ -35,7 +34,7 @@ const CATEGORIES = [
 ];
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<'sites' | 'dropdowns' | 'dashboard' | 'company'>('sites');
+  const [activeTab, setActiveTab] = useState<'sites' | 'dropdowns' | 'dashboard' | 'company' | 'targets'>('sites');
   
   // --- SITES STATE ---
   const [sites, setSites] = useState<Site[]>([]);
@@ -54,7 +53,12 @@ export default function Settings() {
   const [loadingOptions, setLoadingOptions] = useState(true);
 
   // --- DASHBOARD CONFIG STATE ---
-  const [dashboardConfig, setDashboardConfig] = useState<any>({});
+  const [alerts, setAlerts] = useState<AlertConfig[]>([]);
+  const [activityModules, setActivityModules] = useState<ActivityConfig[]>([]);
+  const [newAlertKey, setNewAlertKey] = useState('');
+  const [newAlertLabel, setNewAlertLabel] = useState('');
+  const [newActivityKey, setNewActivityKey] = useState('');
+  const [newActivityLabel, setNewActivityLabel] = useState('');
 
   // --- COMPANY PROFILE STATE ---
   const [companyProfile, setCompanyProfile] = useState<any>({});
@@ -67,11 +71,19 @@ export default function Settings() {
   const [profileLogo, setProfileLogo] = useState<File | null>(null);
   const [existingLogo, setExistingLogo] = useState('');
 
+  // --- TARGETS STATE ---
+  const [targets, setTargets] = useState<Target[]>([]);
+  const [newTargetKey, setNewTargetKey] = useState('');
+  const [newTargetLabel, setNewTargetLabel] = useState('');
+  const [newTargetValue, setNewTargetValue] = useState('');
+  const [newTargetUnit, setNewTargetUnit] = useState('');
+
   useEffect(() => {
     if (activeTab === 'sites') fetchSites();
     if (activeTab === 'dropdowns') fetchOptions();
-    if (activeTab === 'dashboard') fetchConfig();
+    if (activeTab === 'dashboard') { fetchAlerts(); fetchActivityModules(); }
     if (activeTab === 'company') fetchCompanyProfile();
+    if (activeTab === 'targets') fetchTargets();
   }, [activeTab, activeCategory]);
 
   // --- SITE HANDLERS ---
@@ -85,12 +97,9 @@ export default function Settings() {
   const addSite = async () => {
     if (!newSiteName) return;
     await supabase.from('sites').insert([{ 
-      name: newSiteName, 
-      location: newSiteLocation,
-      assembly_point: newSiteAssemblyPoint,
-      hospital_name: newSiteHospitalName,
-      hospital_phone: newSiteHospitalPhone,
-      first_aider_present: newSiteFirstAider
+      name: newSiteName, location: newSiteLocation,
+      assembly_point: newSiteAssemblyPoint, hospital_name: newSiteHospitalName,
+      hospital_phone: newSiteHospitalPhone, first_aider_present: newSiteFirstAider
     }]);
     setNewSiteName(''); setNewSiteLocation(''); setNewSiteAssemblyPoint(''); 
     setNewSiteHospitalName(''); setNewSiteHospitalPhone(''); setNewSiteFirstAider(false);
@@ -124,19 +133,50 @@ export default function Settings() {
   };
 
   // --- DASHBOARD CONFIG HANDLERS ---
-  const fetchConfig = async () => {
-    const { data } = await supabase.from('dashboard_config').select('*');
-    if (data) {
-      const configMap: any = {};
-      data.forEach(item => { configMap[item.config_key] = item.config_value; });
-      setDashboardConfig(configMap);
-    }
+  const fetchAlerts = async () => {
+    const { data } = await supabase.from('dashboard_alerts').select('*').order('alert_label');
+    setAlerts(data || []);
   };
 
-  const toggleConfig = async (key: string) => {
-    const newVal = dashboardConfig[key] === 'true' ? 'false' : 'true';
-    await supabase.from('dashboard_config').upsert([{ config_key: key, config_value: newVal }]);
-    setDashboardConfig({ ...dashboardConfig, [key]: newVal });
+  const fetchActivityModules = async () => {
+    const { data } = await supabase.from('dashboard_activity_modules').select('*').order('module_label');
+    setActivityModules(data || []);
+  };
+
+  const toggleAlert = async (id: string, current: boolean) => {
+    await supabase.from('dashboard_alerts').update({ is_active: !current }).eq('id', id);
+    fetchAlerts();
+  };
+
+  const toggleActivity = async (id: string, current: boolean) => {
+    await supabase.from('dashboard_activity_modules').update({ is_active: !current }).eq('id', id);
+    fetchActivityModules();
+  };
+
+  const addAlert = async () => {
+    if (!newAlertKey || !newAlertLabel) return;
+    await supabase.from('dashboard_alerts').insert([{ alert_key: newAlertKey.toLowerCase().replace(/\s+/g, '_'), alert_label: newAlertLabel }]);
+    setNewAlertKey(''); setNewAlertLabel('');
+    fetchAlerts();
+  };
+
+  const deleteAlert = async (id: string) => {
+    if (!window.confirm("Delete this alert?")) return;
+    await supabase.from('dashboard_alerts').delete().eq('id', id);
+    fetchAlerts();
+  };
+
+  const addActivity = async () => {
+    if (!newActivityKey || !newActivityLabel) return;
+    await supabase.from('dashboard_activity_modules').insert([{ module_key: newActivityKey.toLowerCase().replace(/\s+/g, '_'), module_label: newActivityLabel }]);
+    setNewActivityKey(''); setNewActivityLabel('');
+    fetchActivityModules();
+  };
+
+  const deleteActivity = async (id: string) => {
+    if (!window.confirm("Delete this activity module?")) return;
+    await supabase.from('dashboard_activity_modules').delete().eq('id', id);
+    fetchActivityModules();
   };
 
   // --- COMPANY PROFILE HANDLERS ---
@@ -167,13 +207,8 @@ export default function Settings() {
       }
 
       const payload = {
-        company_name: profileName,
-        officer_name: profileOfficer,
-        officer_role: profileOfficerRole,
-        address: profileAddress,
-        phone: profilePhone,
-        email: profileEmail,
-        logo_url: logoUrl
+        company_name: profileName, officer_name: profileOfficer, officer_role: profileOfficerRole,
+        address: profileAddress, phone: profilePhone, email: profileEmail, logo_url: logoUrl
       };
 
       if (companyProfile.id) {
@@ -188,12 +223,41 @@ export default function Settings() {
     }
   };
 
+  // --- TARGETS HANDLERS ---
+  const fetchTargets = async () => {
+    const { data } = await supabase.from('targets').select('*').order('indicator_label');
+    setTargets(data || []);
+  };
+
+  const addTarget = async () => {
+    if (!newTargetKey || !newTargetLabel) return;
+    await supabase.from('targets').insert([{
+      indicator_key: newTargetKey.toLowerCase().replace(/\s+/g, '_'),
+      indicator_label: newTargetLabel,
+      target_value: newTargetValue ? parseFloat(newTargetValue) : null,
+      unit: newTargetUnit
+    }]);
+    setNewTargetKey(''); setNewTargetLabel(''); setNewTargetValue(''); setNewTargetUnit('');
+    fetchTargets();
+  };
+
+  const deleteTarget = async (id: string) => {
+    if (!window.confirm("Delete this target?")) return;
+    await supabase.from('targets').delete().eq('id', id);
+    fetchTargets();
+  };
+
+  const updateTargetValue = async (id: string, value: string) => {
+    await supabase.from('targets').update({ target_value: value ? parseFloat(value) : null }).eq('id', id);
+    fetchTargets();
+  };
+
   return (
     <div>
       <div className="page-header">
         <div>
           <h1>Settings</h1>
-          <p className="page-subtitle">Manage sites, dropdowns, dashboard preferences, and company profile.</p>
+          <p className="page-subtitle">Manage sites, dropdowns, dashboard preferences, company profile, and targets.</p>
         </div>
       </div>
 
@@ -210,6 +274,9 @@ export default function Settings() {
         </button>
         <button className={`tab ${activeTab === 'company' ? 'active' : ''}`} onClick={() => setActiveTab('company')}>
           <SettingsIcon size={16} /> Company Profile
+        </button>
+        <button className={`tab ${activeTab === 'targets' ? 'active' : ''}`} onClick={() => setActiveTab('targets')}>
+          <SettingsIcon size={16} /> Targets
         </button>
       </div>
 
@@ -229,7 +296,18 @@ export default function Settings() {
                   <input type="checkbox" checked={newSiteFirstAider} onChange={(e) => setNewSiteFirstAider(e.target.checked)} /> First Aider on Site
                 </label>
               </div>
-              <div className="form-group" style={{ justifyContent: 'flex-end' }}><button className="btn-primary" onClick={addSite}><Plus size={18} /> Add Site</button></div>
+              <div className="form-group" style={{ justifyContent: 'flex-end' }}
+              >
+                <button 
+                  className="btn-primary" 
+                  onClick={addSite}
+                  style={{ width: 'auto', alignSelf: 'flex-start' }}
+                >
+                  <Plus size={18} />
+                   Add Site
+                </button>
+              </div>
+
             </div>
           </div>
           <div className="table-container">
@@ -260,35 +338,39 @@ export default function Settings() {
           <div className="category-list">
             <h3 className="form-section-title">Categories</h3>
             {CATEGORIES.map(cat => (
-              <button
-                key={cat.key}
-                className={`category-btn ${activeCategory === cat.key ? 'active' : ''}`}
-                onClick={() => setActiveCategory(cat.key)}
-              >
+              <button key={cat.key} className={`category-btn ${activeCategory === cat.key ? 'active' : ''}`} onClick={() => setActiveCategory(cat.key)}>
                 {cat.label}
               </button>
             ))}
           </div>
-
           <div className="options-panel">
             <div className="form-card mb-24">
               <h3 className="form-section-title">Add Option to {CATEGORIES.find(c => c.key === activeCategory)?.label}</h3>
               <div className="form-grid" style={{ alignItems: 'flex-end' }}>
                 <div className="form-group"><label>New Option</label><input type="text" className="form-input" value={newOption} onChange={(e) => setNewOption(e.target.value)} /></div>
-                <div className="form-group"><button className="btn-primary" onClick={addOption}><Plus size={18} /> Add</button></div>
+                <div 
+                  className="form-group"
+                  style={{ justifyContent: 'flex-end' }}
+                >
+                  <button 
+                    className="btn-primary" 
+                    onClick={addOption}
+                    style={{ width: 'auto', alignSelf: 'flex-start' }}
+                    
+                  >
+                    <Plus size={18} /> Add
+                  </button>
+                </div>
+
               </div>
             </div>
-
             <div className="table-container">
               <table className="data-table">
                 <thead><tr><th>Option Value</th><th style={{ width: '50px' }}></th></tr></thead>
                 <tbody>
                   {loadingOptions ? <tr><td colSpan={2} className="table-message">Loading...</td></tr> :
                     options.map(opt => (
-                      <tr key={opt.id}>
-                        <td>{opt.option_value}</td>
-                        <td><button className="btn-icon danger" onClick={() => deleteOption(opt.id)}><Trash2 size={16} /></button></td>
-                      </tr>
+                      <tr key={opt.id}><td>{opt.option_value}</td><td><button className="btn-icon danger" onClick={() => deleteOption(opt.id)}><Trash2 size={16} /></button></td></tr>
                     ))
                   }
                 </tbody>
@@ -303,38 +385,53 @@ export default function Settings() {
         <div>
           <div className="form-card mb-24">
             <h3 className="form-section-title">Needs Attention Items</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>Choose which alerts appear on the dashboard.</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>Toggle which alerts appear on the dashboard.</p>
+            <div className="form-grid mb-16" style={{ alignItems: 'flex-end' }}>
+              <div className="form-group"><label>Key (e.g., capa_overdue)</label><input type="text" className="form-input" value={newAlertKey} onChange={(e) => setNewAlertKey(e.target.value)} /></div>
+              <div className="form-group"><label>Label (e.g., CAPA Overdue)</label><input type="text" className="form-input" value={newAlertLabel} onChange={(e) => setNewAlertLabel(e.target.value)} />
+              </div>
+
+              <div className="form-group" style={{ justifyContent: 'flex-end' }}>
+                <button className="btn-primary" onClick={addAlert} style={{ width: 'auto', alignSelf: 'flex-start' }}>
+                  <Plus size={18} /> Add Alert
+                </button>
+              </div>
+
+            </div>
+
             <div className="checkbox-row">
-              {[
-                { key: 'show_attention_capa', label: 'CAPA Overdue' },
-                { key: 'show_attention_incidents', label: 'Open Incidents' },
-                { key: 'show_attention_permits', label: 'Active Permits' },
-                { key: 'show_attention_hazards', label: 'Open Hazards' },
-                { key: 'show_attention_inspections', label: 'Open Inspections' },
-              ].map(item => (
-                <label key={item.key} className="checkbox-label">
-                  <input type="checkbox" checked={dashboardConfig[item.key] === 'true'} onChange={() => toggleConfig(item.key)} />
-                  {item.label}
-                </label>
+              {alerts.map(item => (
+                <div key={item.id} className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input type="checkbox" checked={item.is_active} onChange={() => toggleAlert(item.id, item.is_active)} />
+                  <span>{item.alert_label}</span>
+                  <button className="btn-icon danger" onClick={() => deleteAlert(item.id)}><Trash2 size={14} /></button>
+                </div>
               ))}
             </div>
           </div>
 
           <div className="form-card mb-24">
             <h3 className="form-section-title">Recent Activity Modules</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>Choose which modules appear in the recent activity feed.</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>Toggle which modules appear in the recent activity feed.</p>
+            <div className="form-grid mb-16" style={{ alignItems: 'flex-end' }}>
+              <div className="form-group"><label>Key (e.g., incidents)</label><input type="text" className="form-input" value={newActivityKey} onChange={(e) => setNewActivityKey(e.target.value)} /></div>
+              <div className="form-group"><label>Label (e.g., Incidents)</label><input type="text" className="form-input" value={newActivityLabel} onChange={(e) => setNewActivityLabel(e.target.value)} />
+              </div>
+
+              <div className="form-group" style={{ justifyContent: 'flex-end' }}>
+                <button className="btn-primary" onClick={addAlert} style={{ width: 'auto', alignSelf: 'flex-start' }}>
+                  <Plus size={18} /> Add Alert
+                </button>
+              </div>
+
+            </div>
             <div className="checkbox-row">
-              {[
-                { key: 'show_activity_incidents', label: 'Incidents' },
-                { key: 'show_activity_inspections', label: 'Inspections' },
-                { key: 'show_activity_hazards', label: 'Hazards' },
-                { key: 'show_activity_permits', label: 'Permits' },
-                { key: 'show_activity_capa', label: 'CAPA' },
-              ].map(item => (
-                <label key={item.key} className="checkbox-label">
-                  <input type="checkbox" checked={dashboardConfig[item.key] === 'true'} onChange={() => toggleConfig(item.key)} />
-                  {item.label}
-                </label>
+              {activityModules.map(item => (
+                <div key={item.id} className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input type="checkbox" checked={item.is_active} onChange={() => toggleActivity(item.id, item.is_active)} />
+                  <span>{item.module_label}</span>
+                  <button className="btn-icon danger" onClick={() => deleteActivity(item.id)}><Trash2 size={14} /></button>
+                </div>
               ))}
             </div>
           </div>
@@ -362,6 +459,54 @@ export default function Settings() {
             </div>
             {existingLogo && <div className="mt-16"><img src={existingLogo} alt="Logo" style={{ maxHeight: '60px' }} /></div>}
             <button className="btn-primary mt-16" onClick={saveCompanyProfile}>Save Profile</button>
+          </div>
+        </div>
+      )}
+
+      {/* TARGETS TAB */}
+      {activeTab === 'targets' && (
+        <div>
+          <div className="form-card mb-24">
+            <h3 className="form-section-title">Add New Target</h3>
+            <div className="form-grid">
+              <div className="form-group"><label>Key (e.g., ltifr)</label><input type="text" className="form-input" value={newTargetKey} onChange={(e) => setNewTargetKey(e.target.value)} /></div>
+              <div className="form-group"><label>Label (e.g., LTIFR)</label><input type="text" className="form-input" value={newTargetLabel} onChange={(e) => setNewTargetLabel(e.target.value)} /></div>
+              <div className="form-group"><label>Target Value</label><input type="number" className="form-input" value={newTargetValue} onChange={(e) => setNewTargetValue(e.target.value)} /></div>
+              <div className="form-group"><label>Unit (e.g., rate, count)</label><input type="text" className="form-input" value={newTargetUnit} onChange={(e) => setNewTargetUnit(e.target.value)} />
+              </div>
+
+              <div 
+                className="form-group"
+                style={{ justifyContent: 'flex-end' }}
+              >
+                <button 
+                  className="btn-primary" 
+                  onClick={addTarget}
+                  style={{ width: 'auto', alignSelf: 'flex-start' }}
+                  >
+                    <Plus size={18} />
+                   Add Target
+                </button>
+              </div>
+
+            </div>
+          </div>
+          <div className="table-container">
+            <table className="data-table">
+              <thead><tr><th>Indicator</th><th>Target Value</th><th>Unit</th><th style={{ width: '50px' }}></th></tr></thead>
+              <tbody>
+                {targets.map(t => (
+                  <tr key={t.id}>
+                    <td className="font-medium">{t.indicator_label}</td>
+                    <td>
+                      <input type="number" className="form-input" style={{ width: '120px' }} defaultValue={t.target_value || ''} onBlur={(e) => updateTargetValue(t.id, e.target.value)} />
+                    </td>
+                    <td>{t.unit || '-'}</td>
+                    <td><button className="btn-icon danger" onClick={() => deleteTarget(t.id)}><Trash2 size={16} /></button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

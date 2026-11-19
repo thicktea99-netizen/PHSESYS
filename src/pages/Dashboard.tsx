@@ -5,24 +5,15 @@ import { Plus } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import IncidentChart from '../components/IncidentChart';
 import ManHoursChart from '../components/ManHoursChart';
-import ComplianceScore from '../components/ComplianceScore';
-import SafetyActivities from '../components/SafetyActivities';
 import NeedsAttention from '../components/NeedsAttention';
 import RecentActivity from '../components/RecentActivity';
-
 import '../styles/Dashboard.css';
-
-
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
   const [selectedSite, setSelectedSite] = useState('All');
   const [dateRange, setDateRange] = useState('This Week');
-
-  
-
-
 
   const [stats, setStats] = useState({
     totalManHours: 0, safeManHours: 0, workforce: 0,
@@ -36,17 +27,14 @@ export default function Dashboard() {
   const [manHoursTrend, setManHoursTrend] = useState<any[]>([]);
   const [capaStatus, setCapaStatus] = useState<any[]>([]);
   const [needsAttention, setNeedsAttention] = useState<any[]>([]);
-
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
   useEffect(() => {
+    const savedSite = localStorage.getItem('selectedSite');
+    if (savedSite) setSelectedSite(savedSite);
     fetchSites();
     fetchDashboardData();
   }, [selectedSite, dateRange]);
-
-
-
-
 
   const fetchSites = async () => {
     const { data } = await supabase.from('sites').select('id, name').eq('status', 'active');
@@ -63,17 +51,21 @@ export default function Dashboard() {
     return start.toISOString().split('T')[0];
   };
 
-  
-
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       const startDate = getDateRange();
       const siteFilter = selectedSite === 'All' ? null : selectedSite;
 
-      const { data: configData } = await supabase.from('dashboard_config').select('*');
-      const config: any = {};
-      configData?.forEach(c => { config[c.config_key] = c.config_value === 'true'; });
+      // Fetch dashboard config (alerts and activity toggles)
+      const { data: alertsConfig } = await supabase.from('dashboard_alerts').select('*');
+      const { data: activityConfig } = await supabase.from('dashboard_activity_modules').select('*');
+      const activeAlerts = alertsConfig?.filter(a => a.is_active).map(a => a.alert_key) || [];
+      const activeActivity = activityConfig?.filter(a => a.is_active).map(a => a.module_key) || [];
+
+      // Fetch targets
+      const { data: targetsData } = await supabase.from('targets').select('*');
+      const ltifrTargetValue = parseFloat(targetsData?.find(t => t.indicator_key === 'ltifr')?.target_value?.toString() || '2.0');
 
       // 1. Weekly Snapshot
       const { data: snapshots } = await supabase.from('weekly_snapshots').select('*').order('week_start_date', { ascending: false }).limit(1);
@@ -149,56 +141,50 @@ export default function Dashboard() {
       const { data: trainings } = await supabase.from('certifications').select('*').gte('created_at', startDate);
       const trainingCount = (trainings || []).length;
 
-      // 7. LTIFR Settings
-      const { data: settings } = await supabase.from('app_settings').select('*');
-      const target = parseFloat(settings?.find(s => s.key === 'ltifr_target')?.value || '2.0');
-      const multiplier = parseFloat(settings?.find(s => s.key === 'ltifr_multiplier')?.value || '1000000');
-
+      // 7. LTIFR Calculation
       const ltiCount = incidentsList.filter(i => i.incident_type === 'lti').length;
       const totalHours = currentSnapshot?.total_man_hours || 1;
-      const ltifr = (ltiCount * multiplier) / totalHours;
+      const ltifr = (ltiCount * 1000000) / totalHours;
 
       // 8. Compliance (simplified)
       const overall = 94;
 
-      // 9. Needs Attention
+      // 9. Needs Attention (filtered by activeAlerts)
       const attention = [];
-      if (overdueCapa.length > 0) attention.push({ label: 'CAPA Overdue', count: overdueCapa.length, link: '/capa' });
+      if (activeAlerts.includes('capa_overdue') && overdueCapa.length > 0) {
+        attention.push({ label: 'CAPA Overdue', count: overdueCapa.length, link: '/capa' });
+      }
       const openIncidents = incidentsList.filter(i => i.status !== 'closed').length;
-      if (openIncidents > 0) attention.push({ label: 'Open Incidents', count: openIncidents, link: '/incidents' });
-      if (permitsList.length > 0) attention.push({ label: 'Active Permits', count: permitsList.length, link: '/permits' });
-      if (hazardsList.length > 0) attention.push({ label: 'Open Hazards', count: hazardsList.length, link: '/hazards' });
+      if (activeAlerts.includes('incidents_open') && openIncidents > 0) {
+        attention.push({ label: 'Open Incidents', count: openIncidents, link: '/incidents' });
+      }
+      if (activeAlerts.includes('permits_active') && permitsList.length > 0) {
+        attention.push({ label: 'Active Permits', count: permitsList.length, link: '/permits' });
+      }
+      if (activeAlerts.includes('hazards_open') && hazardsList.length > 0) {
+        attention.push({ label: 'Open Hazards', count: hazardsList.length, link: '/hazards' });
+      }
+      const openInspections = inspections?.length || 0;
+      if (activeAlerts.includes('inspections_open') && openInspections > 0) {
+        attention.push({ label: 'Open Inspections', count: openInspections, link: '/inspections' });
+      }
       setNeedsAttention(attention);
 
-      // 10. Recent Activity
-      // setRecentActivity([
-      //   { text: 'Incident INC-0001 logged', time: '2 hours ago' },
-      //   { text: 'Inspection INS-0003 completed', time: 'Yesterday' },
-      // ]);
-
-      // 10. Recent Activity (from audit_logs)
-      const { data: logs } = await supabase
-        .from('audit_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
-
+      // 10. Recent Activity (filtered by activeActivity)
+      const { data: logs } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(20);
       const filteredLogs = (logs || []).filter(log => {
-        if (log.module === 'Incidents' && !config.show_activity_incidents) return false;
-        if (log.module === 'Inspections' && !config.show_activity_inspections) return false;
-        if (log.module === 'Hazards' && !config.show_activity_hazards) return false;
-        if (log.module === 'Permits' && !config.show_activity_permits) return false;
-        if (log.module === 'CAPA' && !config.show_activity_capa) return false;
+        if (log.module === 'Incidents' && !activeActivity.includes('incidents')) return false;
+        if (log.module === 'Inspections' && !activeActivity.includes('inspections')) return false;
+        if (log.module === 'Hazards' && !activeActivity.includes('hazards')) return false;
+        if (log.module === 'Permits' && !activeActivity.includes('permits')) return false;
+        if (log.module === 'CAPA' && !activeActivity.includes('capa')) return false;
         return true;
-      });
+      }).slice(0, 5);
 
       setRecentActivity(filteredLogs.map(log => ({
         text: `${log.action}: ${log.reference}`,
         time: new Date(log.created_at).toLocaleString()
       })));
-
-
-
 
       // 11. Man-Hours Trend
       setManHoursTrend([
@@ -212,7 +198,7 @@ export default function Dashboard() {
 
       setStats(prev => ({
         ...prev, incidents: incCount, inspections: inspCount,
-        capaOutstanding: openCapa.length, ltifr: ltifr, ltifrTarget: target,
+        capaOutstanding: openCapa.length, ltifr: ltifr, ltifrTarget: ltifrTargetValue,
         daysWithoutLTI: daysWithout, overallCompliance: overall,
         tbtCount: tbtList.length, tbtAttendees: tbtAttendees, trainingCount: trainingCount,
       }));
@@ -229,13 +215,13 @@ export default function Dashboard() {
   return (
     <div>
       {/* HEADER & FILTERS */}
-      
       <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h1>Dashboard</h1>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-         
-          
-          <select className="form-input" value={selectedSite} onChange={(e) => setSelectedSite(e.target.value)} style={{ width: '200px' }}>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <select className="form-input" value={selectedSite} onChange={(e) => {
+            setSelectedSite(e.target.value);
+            localStorage.setItem('selectedSite', e.target.value);
+          }} style={{ width: '200px' }}>
             <option value="All">All Sites</option>
             {sitesList.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
           </select>
@@ -247,8 +233,6 @@ export default function Dashboard() {
           </select>
         </div>
       </div>
-
-
 
       {/* QUICK ACTIONS */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
@@ -302,43 +286,17 @@ export default function Dashboard() {
         </div>
       </div>
 
-     
-
-
-      {/* ROW 3: COMPLIANCE & ACTIVITIES */}
-      <div className="row-3-grid">
-        <ComplianceScore />
-        <SafetyActivities />
-        <div className="chart-card">
-          <div className="chart-header"><h3>CAPA Status</h3></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
-            {capaStatus.map((item, index) => (
-              <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.9rem' }}>{item.name}</span>
-                <span className={`badge severity-${item.name.toLowerCase() === 'open' ? 'critical' : item.name.toLowerCase() === 'in progress' ? 'high' : 'low'}`} style={{ fontSize: '0.9rem', padding: '4px 12px' }}>
-                  {item.value}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ROW 4: CHARTS */}
+      {/* ROW 3: CHARTS */}
       <div className="charts-row">
         <IncidentChart data={incidentBreakdown} />
         <ManHoursChart data={manHoursTrend} />
       </div>
 
-      {/* ROW 5: NEEDS ATTENTION & RECENT ACTIVITY */}
+      {/* ROW 4: NEEDS ATTENTION & RECENT ACTIVITY */}
       <div className="row-4-grid">
         <NeedsAttention items={needsAttention} />
         <RecentActivity items={recentActivity} />
       </div>
-
-
-      
-
     </div>
   );
 }

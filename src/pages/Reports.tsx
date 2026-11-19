@@ -1,6 +1,6 @@
 // src/pages/Reports.tsx
 import { useState, useEffect, useRef } from 'react';
-import { Download, Eye } from 'lucide-react';
+import { FileText, Download, Eye } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -31,7 +31,14 @@ export default function Reports() {
   const [periodType, setPeriodType] = useState('Weekly');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedSections, setSelectedSections] = useState<string[]>(ALL_SECTIONS.map(s => s.key));
+  
+  const [reportData, setReportData] = useState<any>({});
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
 
+  // Summary & Sign-Off
   const [summaryNote, setSummaryNote] = useState('');
   const [reviewedBy, setReviewedBy] = useState('');
   const [reviewedByRole, setReviewedByRole] = useState('');
@@ -40,18 +47,13 @@ export default function Reports() {
   const [approvedByRole, setApprovedByRole] = useState('');
   const [approvedDate, setApprovedDate] = useState('');
 
-  const [selectedSections, setSelectedSections] = useState<string[]>(ALL_SECTIONS.map(s => s.key));
-
-
-  
-  const [reportData, setReportData] = useState<any>({});
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const previewRef = useRef<HTMLDivElement>(null);
+  // Targets
+  const [targets, setTargets] = useState<any[]>([]);
 
   useEffect(() => {
     fetchSites();
     fetchCompanyProfile();
+    fetchTargets();
     setDefaultDates();
   }, [periodType]);
 
@@ -63,6 +65,11 @@ export default function Reports() {
   const fetchCompanyProfile = async () => {
     const { data } = await supabase.from('company_profile').select('*').limit(1).single();
     if (data) setCompanyProfile(data);
+  };
+
+  const fetchTargets = async () => {
+    const { data } = await supabase.from('targets').select('*');
+    if (data) setTargets(data);
   };
 
   const setDefaultDates = () => {
@@ -179,33 +186,26 @@ export default function Reports() {
 
       if (selectedSections.includes('photos')) {
         const photoUrls: { url: string, caption: string }[] = [];
-
-        // 1. Incident photos
         if (data.incidents) {
           data.incidents.forEach((i: any) => {
-            if (i.photo_url) photoUrls.push({ url: i.photo_url, caption: `Incident INC-${String(i.incident_number).padStart(4, '0')}: ${i.description}` });
+            if (i.photo_url) photoUrls.push({ url: i.photo_url, caption: `Incident: ${i.description}` });
           });
         }
-
-        // 2. Inspection Finding photos
         if (data.inspections) {
           for (const insp of data.inspections) {
             const { data: findings } = await supabase.from('inspection_findings').select('*').eq('inspection_id', insp.id);
             if (findings) {
               findings.forEach((f: any) => {
-                if (f.photo_url) photoUrls.push({ url: f.photo_url, caption: `Inspection INS-${String(insp.inspection_number).padStart(4, '0')}: ${f.description}` });
+                if (f.photo_url) photoUrls.push({ url: f.photo_url, caption: `Inspection: ${f.description}` });
               });
             }
           }
         }
-
-        // 3. Hazard photos
         if (data.hazards) {
           data.hazards.forEach((h: any) => {
-            if (h.photo_url) photoUrls.push({ url: h.photo_url, caption: `Hazard HAZ-${String(h.hazard_number).padStart(4, '0')}: ${h.description}` });
+            if (h.photo_url) photoUrls.push({ url: h.photo_url, caption: `Hazard: ${h.description}` });
           });
         }
-
         data.photos = photoUrls;
       }
 
@@ -226,7 +226,6 @@ export default function Reports() {
     
     setIsGenerating(true);
     try {
-      // Wait for images to load
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       const pdf = new jsPDF('p', 'mm', 'a4');
@@ -235,11 +234,9 @@ export default function Reports() {
       const margin = 10;
       const contentWidth = pdfWidth - (margin * 2);
 
-      // Get all section elements from the preview
-      const sections = previewRef.current.querySelectorAll('.report-section, .report-header, .report-kpi-grid, .report-footer');
+      const sections = previewRef.current.querySelectorAll('.report-section, .report-header, .report-kpi-grid, .report-footer, .report-section-header');
       
       let currentY = margin;
-      let isFirstPage = true;
 
       for (let i = 0; i < sections.length; i++) {
         const section = sections[i] as HTMLElement;
@@ -256,20 +253,18 @@ export default function Reports() {
         const imgWidth = contentWidth;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-        // If the section doesn't fit on the current page, add a new page
         if (currentY + imgHeight > pdfHeight - margin) {
           pdf.addPage();
           currentY = margin;
         }
 
         pdf.addImage(imgData, 'PNG', margin, currentY, imgWidth, imgHeight);
-        currentY += imgHeight + 5; // 5mm gap between sections
+        currentY += imgHeight + 5;
       }
 
       const fileName = `HSE_Report_${startDate}_to_${endDate}.pdf`;
       pdf.save(fileName);
 
-      // Save to Document Library
       const pdfBlob = pdf.output('blob');
       const fileNameStorage = `report-${Date.now()}.pdf`;
       const { error: uploadError } = await supabase.storage.from('inspection-photos').upload(fileNameStorage, pdfBlob);
@@ -303,8 +298,12 @@ export default function Reports() {
     } finally {
       setIsGenerating(false);
     }
+  };
 
-    const sections = previewRef.current.querySelectorAll('.report-section, .report-header, .report-kpi-grid, .report-footer, .report-section-header');
+  // Helper to get target value by key
+  const getTarget = (key: string) => {
+    const t = targets.find(t => t.indicator_key === key);
+    return t ? t.target_value : '-';
   };
 
   return (
@@ -349,24 +348,10 @@ export default function Reports() {
           ))}
         </div>
 
-
-        {/* Summary Notes */}
-        <h3 className="form-section-title mt-32">
-          3. Summary & Recommendations
-        </h3>
-
+        <h3 className="form-section-title mt-32">3. Summary & Recommendations</h3>
         <div className="form-group">
-          <label>Summary Note (Optional)</label>
-          <textarea 
-            className="form-input" 
-            rows={4} 
-            placeholder="Enter a summary or recommendations for this report..."
-            value={summaryNote}
-            onChange={(e) => setSummaryNote(e.target.value)}
-          ></textarea>
+          <textarea className="form-input" rows={4} placeholder="Enter a summary or recommendations..." value={summaryNote} onChange={(e) => setSummaryNote(e.target.value)}></textarea>
         </div>
-
-
 
         <h3 className="form-section-title mt-32">4. Sign-Off</h3>
         <div className="form-grid">
@@ -378,9 +363,7 @@ export default function Reports() {
           <div className="form-group"><label>Approved Date</label><input type="date" className="form-input" value={approvedDate} onChange={(e) => setApprovedDate(e.target.value)} /></div>
         </div>
 
-
-
-        <button className="btn-primary mt-24 preview" onClick={fetchReportData} disabled={isGenerating}>
+        <button className="btn-primary mt-24" onClick={fetchReportData} disabled={isGenerating}>
           <Eye size={18} /> {isGenerating ? 'Generating...' : 'Preview Report'}
         </button>
       </div>
@@ -396,7 +379,7 @@ export default function Reports() {
 
           <div className="report-preview-container">
             <div ref={previewRef} className="report-preview">
-              {/* BRANDED HEADER */}
+              {/* HEADER */}
               <div className="report-header">
                 <div className="report-brand">
                   {companyProfile.logo_url && <img src={companyProfile.logo_url} alt="Logo" style={{ maxHeight: '60px', marginBottom: '8px' }} />}
@@ -414,12 +397,9 @@ export default function Reports() {
                 </div>
               </div>
 
-              <div className="report-section-header">
-                <h2>1. HSE Performance</h2>
-              </div>
+              {/* SECTION 1: HSE PERFORMANCE */}
+              <div className="report-section-header"><h2>1. HSE Performance</h2></div>
 
-              {/* KPI CARDS */}
-                            {/* HSE PERFORMANCE KPI CARDS */}
               <div className="report-kpi-grid">
                 <div className="report-kpi-card">
                   <h4>Man-Hours</h4>
@@ -450,153 +430,57 @@ export default function Reports() {
                 </div>
               </div>
 
-              {/* KPI COMPARISON TABLE */}
               <div className="report-section">
                 <h3>HSE Performance vs. Targets</h3>
                 <table className="report-table">
                   <thead>
-                    <tr>
-                      <th>KPI</th>
-                      <th>Current</th>
-                      <th>Target</th>
-                      <th>Status</th>
-                    </tr>
+                    <tr><th>KPI</th><th>Current</th><th>Target</th><th>Status</th></tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td>LTIFR</td>
-                      <td>{(() => {
-                        const ltiCount = reportData.incidents?.filter((i: any) => i.incident_type === 'lti').length || 0;
-                        const totalHours = reportData.snapshots?.reduce((sum: number, s: any) => sum + s.total_man_hours, 0) || 1;
-                        return ((ltiCount * 1000000) / totalHours).toFixed(2);
-                      })()}</td>
-                      <td>{companyProfile.ltifr_target || '2.0'}</td>
-                      <td>🟢 On Target</td>
-                    </tr>
-                    <tr>
-                      <td>Incidents</td>
-                      <td>{reportData.incidents?.length || 0}</td>
-                      <td>0</td>
-                      <td>{reportData.incidents?.length === 0 ? '🟢 On Target' : '🔴 Off Target'}</td>
-                    </tr>
-                    <tr>
-                      <td>CAPA Open</td>
-                      <td>{reportData.capa?.filter((c: any) => c.status !== 'closed').length || 0}</td>
-                      <td>0</td>
-                      <td>{reportData.capa?.filter((c: any) => c.status !== 'closed').length === 0 ? '🟢 On Target' : '🟡 Needs Attention'}</td>
-                    </tr>
+                    {(() => {
+                      const ltiCount = reportData.incidents?.filter((i: any) => i.incident_type === 'lti').length || 0;
+                      const totalHours = reportData.snapshots?.reduce((sum: number, s: any) => sum + s.total_man_hours, 0) || 1;
+                      const currentLtifr = ((ltiCount * 1000000) / totalHours).toFixed(2);
+                      const ltifrTarget = getTarget('ltifr');
+                      const ltifrStatus = parseFloat(currentLtifr) <= parseFloat(ltifrTarget) ? '🟢 On Target' : '🔴 Off Target';
+                      const incCount = reportData.incidents?.length || 0;
+                      const incStatus = incCount === 0 ? '🟢 On Target' : '🔴 Off Target';
+                      const capaOpen = reportData.capa?.filter((c: any) => c.status !== 'closed').length || 0;
+                      const capaStatus = capaOpen === 0 ? '🟢 On Target' : '🟡 Needs Attention';
+
+                      return (
+                        <>
+                          <tr><td>LTIFR</td><td>{currentLtifr}</td><td>{ltifrTarget}</td><td>{ltifrStatus}</td></tr>
+                          <tr><td>Incidents</td><td>{incCount}</td><td>{getTarget('incidents')}</td><td>{incStatus}</td></tr>
+                          <tr><td>CAPA Open</td><td>{capaOpen}</td><td>{getTarget('capa_open')}</td><td>{capaStatus}</td></tr>
+                        </>
+                      );
+                    })()}
                   </tbody>
                 </table>
               </div>
 
-              <div className="report-section-header">
-                <h2>2. Lagging Indicators</h2>
-              </div>
+              {/* SECTION 2: LAGGING INDICATORS */}
+              <div className="report-section-header"><h2>2. Lagging Indicators</h2></div>
 
-              {/* INCIDENTS */}
               {reportData.incidents && reportData.incidents.length > 0 && (
                 <div className="report-section">
                   <h3>Incidents ({reportData.incidents.length})</h3>
                   <table className="report-table">
-                    <thead>
-                      <tr><th>Date</th><th>Type</th><th>Severity</th><th>Status</th></tr>
-                    </thead>
+                    <thead><tr><th>Date</th><th>Type</th><th>Severity</th><th>Status</th></tr></thead>
                     <tbody>
                       {reportData.incidents.map((i: any) => (
-                        <tr key={i.id}>
-                          <td>INC-{String(i.incident_number).padStart(4, '0')}</td>
-                          <td>{i.date_of_occurrence}</td>
-                          <td>{i.incident_type}</td>
-                          <td>{i.severity}</td>
-                          <td>{i.status}</td>
-                        </tr>
+                        <tr key={i.id}><td>{i.date_of_occurrence}</td><td>{i.incident_type}</td><td>{i.severity}</td><td>{i.status}</td></tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               )}
 
-
-              <div className="report-section-header">
-                <h2>3. Leading Indicators</h2>
-              </div>
-              {/* INSPECTIONS */}
-              {reportData.inspections && reportData.inspections.length > 0 && (
-                <div className="report-section">
-                  <h3>Inspections ({reportData.inspections.length})</h3>
-                  <table className="report-table">
-                    <thead>
-                      <tr><th>Date</th><th>Type</th><th>Site</th></tr>
-                    </thead>
-                    <tbody>
-                      {reportData.inspections.map((i: any) => (
-                        <tr key={i.id}>
-                          <td>INS-{String(i.inspection_number).padStart(4, '0')}</td>
-                          <td>{i.date}</td>
-                          <td>{i.inspection_type}</td>
-                          <td>{i.site}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* HAZARDS */}
-              {reportData.hazards && reportData.hazards.length > 0 && (
-                <div className="report-section">
-                  <h3>Hazards & Observations ({reportData.hazards.length})</h3>
-                  <table className="report-table">
-                    <thead>
-                      <tr><th>Date</th><th>Type</th><th>Risk Score</th><th>Status</th></tr>
-                    </thead>
-                    <tbody>
-                      {reportData.hazards.map((h: any) => (
-                        <tr key={h.id}>
-                          <td>HAZ-{String(h.hazard_number).padStart(4, '0')}</td>
-                          <td>{h.date_observed}</td>
-                          <td>{h.entry_type}</td>
-                          <td>{h.risk_score || '-'}</td>
-                          <td>{h.status}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )
-              }
-              
-          
-              {reportData.toolbox && reportData.toolbox.length > 0 && (
-                <div className="report-section">
-                  <h3>Toolbox Talks ({reportData.toolbox.length})</h3>
-                  <table className="report-table">
-                    <thead>
-                      <tr><th>Date</th><th>Topic</th><th>Presenter</th><th>Attendees</th></tr>
-                    </thead>
-                    <tbody>
-                      {reportData.toolbox.map((t: any) => (
-                        <tr key={t.id}>
-                          <td>{t.date}</td>
-                          <td>{t.topic}</td>
-                          <td>{t.presenter_name}</td>
-                          <td>{t.attendee_count}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-
-
-              {/* CAPA */}
-                            {/* CAPA */}
               {reportData.capa && reportData.capa.length > 0 && (
                 <div className="report-section">
                   <h3>CAPA Status</h3>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '32px', padding: '16px' }}>
-                    {/* SVG Donut Chart */}
                     <svg width="120" height="120" viewBox="0 0 120 120">
                       <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" strokeWidth="20" />
                       {(() => {
@@ -604,104 +488,172 @@ export default function Reports() {
                         const open = reportData.capa.filter((c: any) => c.status === 'open').length;
                         const inProgress = reportData.capa.filter((c: any) => c.status === 'in progress').length;
                         const closed = reportData.capa.filter((c: any) => c.status === 'closed').length;
-                        
                         const circumference = 2 * Math.PI * 50;
                         const openDash = (open / total) * circumference;
                         const inProgressDash = (inProgress / total) * circumference;
                         const closedDash = (closed / total) * circumference;
-
                         let offset = 0;
-                        
                         return (
                           <>
-                            <circle cx="60" cy="60" r="50" fill="none" stroke="#ef4444" strokeWidth="20"
-                              strokeDasharray={`${openDash} ${circumference - openDash}`}
-                              strokeDashoffset={offset}
-                              transform="rotate(-90 60 60)"
-                            />
+                            <circle cx="60" cy="60" r="50" fill="none" stroke="#ef4444" strokeWidth="20" strokeDasharray={`${openDash} ${circumference - openDash}`} strokeDashoffset={offset} transform="rotate(-90 60 60)" />
                             {(() => { offset -= openDash; return null; })()}
-                            <circle cx="60" cy="60" r="50" fill="none" stroke="#f59e0b" strokeWidth="20"
-                              strokeDasharray={`${inProgressDash} ${circumference - inProgressDash}`}
-                              strokeDashoffset={offset}
-                              transform="rotate(-90 60 60)"
-                            />
+                            <circle cx="60" cy="60" r="50" fill="none" stroke="#f59e0b" strokeWidth="20" strokeDasharray={`${inProgressDash} ${circumference - inProgressDash}`} strokeDashoffset={offset} transform="rotate(-90 60 60)" />
                             {(() => { offset -= inProgressDash; return null; })()}
-                            <circle cx="60" cy="60" r="50" fill="none" stroke="#10b981" strokeWidth="20"
-                              strokeDasharray={`${closedDash} ${circumference - closedDash}`}
-                              strokeDashoffset={offset}
-                              transform="rotate(-90 60 60)"
-                            />
+                            <circle cx="60" cy="60" r="50" fill="none" stroke="#10b981" strokeWidth="20" strokeDasharray={`${closedDash} ${circumference - closedDash}`} strokeDashoffset={offset} transform="rotate(-90 60 60)" />
                           </>
                         );
                       })()}
                       <text x="60" y="55" textAnchor="middle" fontSize="20" fontWeight="bold" fill="#1f2937">{reportData.capa.length}</text>
                       <text x="60" y="70" textAnchor="middle" fontSize="10" fill="#6b7280">Total</text>
                     </svg>
-                    {/* Legend */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ width: '12px', height: '12px', backgroundColor: '#ef4444', borderRadius: '2px' }}></span>
-                        <span style={{ fontSize: '0.8rem' }}>Open: {reportData.capa.filter((c: any) => c.status === 'open').length}</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ width: '12px', height: '12px', backgroundColor: '#f59e0b', borderRadius: '2px' }}></span>
-                        <span style={{ fontSize: '0.8rem' }}>In Progress: {reportData.capa.filter((c: any) => c.status === 'in progress').length}</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ width: '12px', height: '12px', backgroundColor: '#10b981', borderRadius: '2px' }}></span>
-                        <span style={{ fontSize: '0.8rem' }}>Closed: {reportData.capa.filter((c: any) => c.status === 'closed').length}</span>
-                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ width: '12px', height: '12px', backgroundColor: '#ef4444', borderRadius: '2px' }}></span><span style={{ fontSize: '0.8rem' }}>Open: {reportData.capa.filter((c: any) => c.status === 'open').length}</span></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ width: '12px', height: '12px', backgroundColor: '#f59e0b', borderRadius: '2px' }}></span><span style={{ fontSize: '0.8rem' }}>In Progress: {reportData.capa.filter((c: any) => c.status === 'in progress').length}</span></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ width: '12px', height: '12px', backgroundColor: '#10b981', borderRadius: '2px' }}></span><span style={{ fontSize: '0.8rem' }}>Closed: {reportData.capa.filter((c: any) => c.status === 'closed').length}</span></div>
                     </div>
                   </div>
                 </div>
               )}
 
-              
-              {summaryNote && (
+              {reportData.audits && reportData.audits.length > 0 && (
                 <div className="report-section">
-                  <h3>Summary & Recommendations</h3>
-                  <p style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>{summaryNote}</p>
+                  <h3>Audits ({reportData.audits.length})</h3>
+                  <table className="report-table">
+                    <thead><tr><th>Date</th><th>Title</th><th>Type</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {reportData.audits.map((a: any) => (
+                        <tr key={a.id}><td>{a.audit_date}</td><td>{a.title}</td><td>{a.audit_type}</td><td>{a.status}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
 
-              
-              {/* <h3 className="form-section-title mt-32">4. Sign-Off</h3>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label>Reviewed By (Name)</label>
-                  <input type="text" className="form-input" value={reviewedBy} onChange={(e) => setReviewedBy(e.target.value)} />
-                </div>
+              {/* SECTION 3: LEADING INDICATORS */}
+              <div className="report-section-header"><h2>3. Leading Indicators</h2></div>
 
-                <div className="form-group">
-                  <label>Reviewed By (Role)</label>
-                  <input type="text" className="form-input" value={reviewedByRole} onChange={(e) => setReviewedByRole(e.target.value)} />
-                </div>
-
-                <div className="form-group">
-                  <label>Reviewed Date</label>
-                  <input type="date" className="form-input" value={reviewedDate} onChange={(e) => setReviewedDate(e.target.value)} />
-                </div>
-
-                <div className="form-group">
-                  <label>Approved By (Name)</label>
-                  <input type="text" className="form-input" value={approvedBy} onChange={(e) => setApprovedBy(e.target.value)} />
-                </div>
-
-                <div className="form-group">
-                  <label>Approved By (Role)</label>
-                  <input type="text" className="form-input" value={approvedByRole} onChange={(e) => setApprovedByRole(e.target.value)} />
-                </div>
-
-                <div className="form-group">
-                  <label>Approved Date</label>
-                  <input type="date" className="form-input" value={approvedDate} onChange={(e) => setApprovedDate(e.target.value)} />
-                </div>
-              </div> */}
-
-              {/* PHOTO EVIDENCE */}
-              {reportData.photos && reportData.photos.length > 0 && (
+              {reportData.inspections && reportData.inspections.length > 0 && (
                 <div className="report-section">
-                  <h3>Photo Evidence</h3>
+                  <h3>Inspections ({reportData.inspections.length})</h3>
+                  <table className="report-table">
+                    <thead><tr><th>Date</th><th>Type</th><th>Site</th></tr></thead>
+                    <tbody>
+                      {reportData.inspections.map((i: any) => (
+                        <tr key={i.id}><td>{i.date}</td><td>{i.inspection_type}</td><td>{i.site}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {reportData.hazards && reportData.hazards.length > 0 && (
+                <div className="report-section">
+                  <h3>Hazards & Observations ({reportData.hazards.length})</h3>
+                  <table className="report-table">
+                    <thead><tr><th>Date</th><th>Type</th><th>Risk Score</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {reportData.hazards.map((h: any) => (
+                        <tr key={h.id}><td>{h.date_observed}</td><td>{h.entry_type}</td><td>{h.risk_score || '-'}</td><td>{h.status}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {reportData.toolbox && reportData.toolbox.length > 0 && (
+                <div className="report-section">
+                  <h3>Toolbox Talks ({reportData.toolbox.length})</h3>
+                  <table className="report-table">
+                    <thead><tr><th>Date</th><th>Topic</th><th>Presenter</th><th>Attendees</th></tr></thead>
+                    <tbody>
+                      {reportData.toolbox.map((t: any) => (
+                        <tr key={t.id}><td>{t.date}</td><td>{t.topic}</td><td>{t.presenter_name}</td><td>{t.attendee_count}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {reportData.permits && reportData.permits.length > 0 && (
+                <div className="report-section">
+                  <h3>Permits ({reportData.permits.length})</h3>
+                  <table className="report-table">
+                    <thead><tr><th>Type</th><th>Work Description</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {reportData.permits.map((p: any) => (
+                        <tr key={p.id}><td>{p.permit_type}</td><td>{p.work_description}</td><td>{p.status}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {reportData.equipment && reportData.equipment.length > 0 && (
+                <div className="report-section">
+                  <h3>Equipment ({reportData.equipment.length})</h3>
+                  <table className="report-table">
+                    <thead><tr><th>Name</th><th>Type</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {reportData.equipment.map((e: any) => (
+                        <tr key={e.id}><td>{e.name}</td><td>{e.type}</td><td>{e.status}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {reportData.training && reportData.training.length > 0 && (
+                <div className="report-section">
+                  <h3>Training & Certifications ({reportData.training.length})</h3>
+                  <table className="report-table">
+                    <thead><tr><th>Person</th><th>Certification</th><th>Expiry</th></tr></thead>
+                    <tbody>
+                      {reportData.training.map((t: any) => (
+                        <tr key={t.id}><td>{t.person_name}</td><td>{t.cert_type}</td><td>{t.expiry_date}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {reportData.drills && reportData.drills.length > 0 && (
+                <div className="report-section">
+                  <h3>Drills & Exercises ({reportData.drills.length})</h3>
+                  <table className="report-table">
+                    <thead><tr><th>Date</th><th>Type</th><th>Participants</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {reportData.drills.map((d: any) => (
+                        <tr key={d.id}><td>{d.date}</td><td>{d.drill_type}</td><td>{d.total_participants}</td><td>{d.status}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {reportData.compliance && reportData.compliance.length > 0 && (
+                <div className="report-section">
+                  <h3>Compliance Status</h3>
+                  <table className="report-table">
+                    <thead><tr><th>Obligation</th><th>Expiry</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {reportData.compliance.map((c: any) => (
+                        <tr key={c.id}><td>{c.obligation_name}</td><td>{c.expiry_date || '-'}</td><td>{c.status || '-'}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* SECTION 4: SUMMARY */}
+              <div className="report-section-header"><h2>4. Summary & Recommendations</h2></div>
+              <div className="report-section">
+                <p style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>{summaryNote || 'No summary provided.'}</p>
+              </div>
+
+              {/* SECTION 5: PHOTO EVIDENCE */}
+              <div className="report-section-header"><h2>5. Photo Evidence</h2></div>
+              {reportData.photos && reportData.photos.length > 0 ? (
+                <div className="report-section">
                   <div className="report-photos-grid">
                     {reportData.photos.map((photo: any, index: number) => (
                       <div key={index} className="report-photo-item">
@@ -711,56 +663,25 @@ export default function Reports() {
                     ))}
                   </div>
                 </div>
-              )} 
+              ) : (
+                <div className="report-section"><p style={{ fontSize: '0.85rem', color: '#6b7280' }}>No photos available for this period.</p></div>
+              )}
 
-              {/* SignOff */}
+              {/* SECTION 6: SIGN-OFF */}
+              <div className="report-section-header"><h2>6. Sign-Off</h2></div>
               <div className="report-section">
-                <h3>Sign-Off</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginTop: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
                   <div>
-                    <h4 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '8px' }}>
-                      Reviewed By:
-                    </h4>
-
-                    <p style={{ fontSize: '0.8rem', marginBottom: '4px' }}>
-                      Name: {reviewedBy || '.......................................................'}
-                    </p>
-
-                    <p style={{ fontSize: '0.8rem', marginBottom: '4px' }}>
-                      Role: {reviewedByRole || '.......................................................'}
-                    </p>
-
-                    <p style={{ fontSize: '0.8rem' }}>
-                      Date: {reviewedDate || '.......................................................'}
-                    </p>
-
-                    <p style={{ fontSize: '0.8rem' }}>
-                      Signature: { '.......................................................'}
-                    </p>
-
-
+                    <h4 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '8px' }}>Reviewed By:</h4>
+                    <p style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Name: {reviewedBy || '_________________'}</p>
+                    <p style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Role: {reviewedByRole || '_________________'}</p>
+                    <p style={{ fontSize: '0.8rem' }}>Date: {reviewedDate || '_________________'}</p>
                   </div>
-
                   <div>
-                    <h4 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '8px' }}>
-                      Approved By:
-                    </h4>
-
-                    <p style={{ fontSize: '0.8rem', marginBottom: '4px' }}>
-                      Name: {approvedBy || '.......................................................'}
-                    </p>
-
-                    <p style={{ fontSize: '0.8rem', marginBottom: '4px' }}>
-                      Role: {approvedByRole || '.......................................................'}
-                    </p>
-                    <p style={{ fontSize: '0.8rem' }}>
-                      Date: {approvedDate || '.......................................................'}
-                    </p>
-
-                    <p style={{ fontSize: '0.8rem' }}>
-                      Signature: { '.......................................................'}
-                    </p>
-
+                    <h4 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '8px' }}>Approved By:</h4>
+                    <p style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Name: {approvedBy || '_________________'}</p>
+                    <p style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Role: {approvedByRole || '_________________'}</p>
+                    <p style={{ fontSize: '0.8rem' }}>Date: {approvedDate || '_________________'}</p>
                   </div>
                 </div>
               </div>
