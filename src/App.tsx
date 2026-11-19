@@ -44,6 +44,8 @@ import LogEmergencyContact from './pages/LogEmergencyContact';
 
 import LogInvestigation from './pages/LogInvestigation';
 
+import Reports from './pages/Reports';
+
 import Footer from './components/Footer';
 
 function App() {
@@ -71,9 +73,14 @@ function App() {
               <Route path="/inspections/:id" element={<InspectionDetail />} />
 
               {/* CAPA */}
-              <Route path="/capa" element={<Capa />} />
-              <Route path="/capa/new" element={<LogCapa />} />
-              <Route path="/capa/:id" element={<CapaDetail />} />
+              <Route path="/capa" element={<Capa />} 
+              />
+
+              <Route path="/capa/new" element={<LogCapa />} 
+              />
+
+              <Route path="/capa/:id" element={<CapaDetail />} 
+              />
 
               {/* Hazards */}
               <Route path="/hazards" element={<Hazards />} />
@@ -136,9 +143,21 @@ function App() {
               <Route path="/drills/:id" element={<LogDrill />} />
 
               {/* Emergency Contacts */}
-              <Route path="/emergency-contacts" element={<EmergencyContacts />} />
-              <Route path="/emergency-contacts/new" element={<LogEmergencyContact />} />
-              <Route path="/emergency-contacts/:id" element={<LogEmergencyContact />} />
+              <Route path="/emergency-contacts" element={<EmergencyContacts />} 
+              />
+
+              <Route path="/emergency-contacts/new" element={<LogEmergencyContact />} 
+              />
+
+              <Route path="/reports/" element={<Reports />}
+              />
+
+              <Route path="/emergency-contacts/:id" element={<LogEmergencyContact />}
+              />
+
+
+
+
 
             </Routes>
             

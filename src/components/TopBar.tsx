@@ -45,7 +45,7 @@ export default function TopBar() {
     <>
       <header className="topbar">
         <div className="topbar-left">
-          <h2>Globe Project - Tower Site</h2>
+          <h2>JJ Consult - New Site</h2>
         </div>
         <div className="topbar-right">
           <button 
@@ -56,7 +56,7 @@ export default function TopBar() {
             <span className="emergency-dot"></span>
             <span className="tooltip-text">Emergency Info</span>
           </button>
-          <span className="user-profile">Welcome, Kwame</span>
+          <span className="user-profile">Welcome, Thick Tea</span>
         </div>
       </header>
 

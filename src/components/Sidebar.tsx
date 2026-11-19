@@ -4,7 +4,7 @@ import {
   LayoutDashboard, AlertTriangle, ClipboardCheck, AlertCircle, 
   MessageSquare, FileText, Shield, FileCheck, GraduationCap, 
   FolderOpen, Settings, Users, ChevronDown, ChevronRight, Wrench, 
-  ShieldAlert, FileSearch, Siren, Phone 
+  ShieldAlert, FileSearch, Siren, Phone, BookOpen 
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import '../styles/Sidebar.css';
@@ -32,7 +32,8 @@ export default function Sidebar() {
     if (location.pathname.startsWith('/drills') || location.pathname.startsWith('/emergency-contacts')) {
       setOpenGroups(prev => ({ ...prev, emergency: true }));
     }
-  }, [location.pathname]);
+  }, [location.pathname]
+);
 
   const toggleGroup = (group: string) => {
     setOpenGroups(prev => ({ ...prev, [group]: !prev[group] }));
@@ -46,7 +47,7 @@ export default function Sidebar() {
     <div className="sidebar">
       <div className="sidebar-logo">
         <Shield size={28} color="#2563eb" />
-        <span>HSE Manager</span>
+        <span>PHESYS</span>
       </div>
 
       <nav className="sidebar-nav">
@@ -97,8 +98,14 @@ export default function Sidebar() {
               </Link>
               <Link to="/risk-assessments" className={`nav-item ${location.pathname.startsWith('/risk-assessments') ? 'active' : ''}`}>
                 <ShieldAlert size={18} />
-                <span>Risk Assessments</span>
+                <span>Risk Management</span>
               </Link>
+
+              <Link to="/capa" className={`nav-item ${location.pathname.startsWith('/capa') ? 'active' : ''}`}>
+                <BookOpen size={18} />
+                <span>CAPA Tracker</span>
+              </Link>
+
               <Link to="/man-hours" className={`nav-item ${location.pathname.startsWith('/man-hours') ? 'active' : ''}`}>
                 <FileText size={18} />
                 <span>Man-Hours Log</span>
@@ -153,13 +160,20 @@ export default function Sidebar() {
                 <FileCheck size={18} />
                 <span>Compliance Register</span>
               </Link>
+
               <Link to="/documents" className={`nav-item ${location.pathname.startsWith('/documents') ? 'active' : ''}`}>
                 <FolderOpen size={18} />
                 <span>Library</span>
               </Link>
+
               <Link to="/audits" className={`nav-item ${location.pathname.startsWith('/audits') ? 'active' : ''}`}>
                 <FileSearch size={18} />
                 <span>Audits</span>
+              </Link>
+
+              <Link to="/reports" className={`nav-item ${location.pathname.startsWith('/reports') ? 'active' : ''}`}>
+                <FileText size={18} />
+                <span>Reports</span>
               </Link>
             </div>
           )}

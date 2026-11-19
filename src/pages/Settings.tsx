@@ -1,3 +1,7 @@
+
+
+
+
 // src/pages/Settings.tsx
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Settings as SettingsIcon } from 'lucide-react';
@@ -31,7 +35,7 @@ const CATEGORIES = [
 ];
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<'sites' | 'dropdowns' | 'dashboard'>('sites');
+  const [activeTab, setActiveTab] = useState<'sites' | 'dropdowns' | 'dashboard' | 'company'>('sites');
   
   // --- SITES STATE ---
   const [sites, setSites] = useState<Site[]>([]);
@@ -52,10 +56,22 @@ export default function Settings() {
   // --- DASHBOARD CONFIG STATE ---
   const [dashboardConfig, setDashboardConfig] = useState<any>({});
 
+  // --- COMPANY PROFILE STATE ---
+  const [companyProfile, setCompanyProfile] = useState<any>({});
+  const [profileName, setProfileName] = useState('');
+  const [profileOfficer, setProfileOfficer] = useState('');
+  const [profileOfficerRole, setProfileOfficerRole] = useState('');
+  const [profileAddress, setProfileAddress] = useState('');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profileLogo, setProfileLogo] = useState<File | null>(null);
+  const [existingLogo, setExistingLogo] = useState('');
+
   useEffect(() => {
     if (activeTab === 'sites') fetchSites();
     if (activeTab === 'dropdowns') fetchOptions();
     if (activeTab === 'dashboard') fetchConfig();
+    if (activeTab === 'company') fetchCompanyProfile();
   }, [activeTab, activeCategory]);
 
   // --- SITE HANDLERS ---
@@ -123,12 +139,61 @@ export default function Settings() {
     setDashboardConfig({ ...dashboardConfig, [key]: newVal });
   };
 
+  // --- COMPANY PROFILE HANDLERS ---
+  const fetchCompanyProfile = async () => {
+    const { data } = await supabase.from('company_profile').select('*').limit(1).single();
+    if (data) {
+      setCompanyProfile(data);
+      setProfileName(data.company_name || '');
+      setProfileOfficer(data.officer_name || '');
+      setProfileOfficerRole(data.officer_role || '');
+      setProfileAddress(data.address || '');
+      setProfilePhone(data.phone || '');
+      setProfileEmail(data.email || '');
+      setExistingLogo(data.logo_url || '');
+    }
+  };
+
+  const saveCompanyProfile = async () => {
+    try {
+      let logoUrl = existingLogo;
+      if (profileLogo) {
+        const fileExt = profileLogo.name.split('.').pop();
+        const fileName = `logo-${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from('inspection-photos').upload(fileName, profileLogo);
+        if (uploadError) throw uploadError;
+        const { data: urlData } = supabase.storage.from('inspection-photos').getPublicUrl(fileName);
+        logoUrl = urlData.publicUrl;
+      }
+
+      const payload = {
+        company_name: profileName,
+        officer_name: profileOfficer,
+        officer_role: profileOfficerRole,
+        address: profileAddress,
+        phone: profilePhone,
+        email: profileEmail,
+        logo_url: logoUrl
+      };
+
+      if (companyProfile.id) {
+        await supabase.from('company_profile').update(payload).eq('id', companyProfile.id);
+      } else {
+        await supabase.from('company_profile').insert([payload]);
+      }
+      alert("Company profile saved!");
+      fetchCompanyProfile();
+    } catch (error: any) {
+      alert("Error saving profile: " + error.message);
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
         <div>
           <h1>Settings</h1>
-          <p className="page-subtitle">Manage sites, dropdowns, and dashboard preferences.</p>
+          <p className="page-subtitle">Manage sites, dropdowns, dashboard preferences, and company profile.</p>
         </div>
       </div>
 
@@ -142,6 +207,9 @@ export default function Settings() {
         </button>
         <button className={`tab ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
           <SettingsIcon size={16} /> Dashboard Config
+        </button>
+        <button className={`tab ${activeTab === 'company' ? 'active' : ''}`} onClick={() => setActiveTab('company')}>
+          <SettingsIcon size={16} /> Company Profile
         </button>
       </div>
 
@@ -269,6 +337,31 @@ export default function Settings() {
                 </label>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* COMPANY PROFILE TAB */}
+      {activeTab === 'company' && (
+        <div>
+          <div className="form-card mb-24">
+            <h3 className="form-section-title">Company Details</h3>
+            <div className="form-grid">
+              <div className="form-group span-2"><label>Company Name</label><input type="text" className="form-input" value={profileName} onChange={(e) => setProfileName(e.target.value)} /></div>
+              <div className="form-group"><label>Officer Name</label><input type="text" className="form-input" value={profileOfficer} onChange={(e) => setProfileOfficer(e.target.value)} /></div>
+              <div className="form-group"><label>Officer Role</label><input type="text" className="form-input" value={profileOfficerRole} onChange={(e) => setProfileOfficerRole(e.target.value)} /></div>
+              <div className="form-group span-2"><label>Address</label><input type="text" className="form-input" value={profileAddress} onChange={(e) => setProfileAddress(e.target.value)} /></div>
+              <div className="form-group"><label>Phone</label><input type="tel" className="form-input" value={profilePhone} onChange={(e) => setProfilePhone(e.target.value.replace(/\D/g, ''))} /></div>
+              <div className="form-group"><label>Email</label><input type="email" className="form-input" value={profileEmail} onChange={(e) => setProfileEmail(e.target.value)} /></div>
+            </div>
+            <div className="upload-container mt-16">
+              <input type="file" id="logo-file" className="hidden-input" onChange={(e) => setProfileLogo(e.target.files ? e.target.files[0] : null)} />
+              <label htmlFor="logo-file" className="upload-label">
+                <span className="upload-text">{profileLogo ? profileLogo.name : "Upload Company Logo"}</span>
+              </label>
+            </div>
+            {existingLogo && <div className="mt-16"><img src={existingLogo} alt="Logo" style={{ maxHeight: '60px' }} /></div>}
+            <button className="btn-primary mt-16" onClick={saveCompanyProfile}>Save Profile</button>
           </div>
         </div>
       )}
