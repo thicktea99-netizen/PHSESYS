@@ -1,9 +1,12 @@
 // src/pages/Drills.tsx
 import { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import '../styles/Inspections.css';
+import DrillStats from '../components/drills/DrillStats';
+import DrillFilters from '../components/drills/DrillFilters';
+import DrillTable from '../components/drills/DrillTable';
+import '../styles/Incidents.css';
 
 interface Drill {
   id: string;
@@ -18,8 +21,16 @@ interface Drill {
 export default function Drills() {
   const [drills, setDrills] = useState<Drill[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
+  
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [siteFilter, setSiteFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => { fetchDrills(); }, []);
+  useEffect(() => {
+    fetchDrills();
+    fetchSites();
+  }, []);
 
   const fetchDrills = async () => {
     try {
@@ -34,14 +45,31 @@ export default function Drills() {
     }
   };
 
+  const fetchSites = async () => {
+    const { data } = await supabase.from('sites').select('id, name').eq('status', 'active');
+    if (data) setSitesList(data);
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this drill record?")) return;
-    try {
-      const { error } = await supabase.from('drills').delete().eq('id', id);
-      if (error) throw error;
-      setDrills(drills.filter(d => d.id !== id));
-    } catch (error: any) { alert(error.message); }
+    await supabase.from('drills').delete().eq('id', id);
+    setDrills(drills.filter(d => d.id !== id));
   };
+
+  // Filter logic
+  const filteredDrills = drills.filter(drill => {
+    const matchesStatus = statusFilter === 'All' || drill.status === statusFilter;
+    const matchesSite = siteFilter === 'All' || drill.site === siteFilter;
+    const matchesSearch = searchQuery === '' || 
+      drill.drill_type.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesStatus && matchesSite && matchesSearch;
+  });
+
+  // Stats
+  const total = drills.length;
+  const completed = drills.filter(d => d.status === 'Completed').length;
+  const planned = drills.filter(d => d.status === 'Planned').length;
+  const totalParticipants = drills.reduce((sum, d) => sum + (d.total_participants || 0), 0);
 
   return (
     <div>
@@ -53,46 +81,23 @@ export default function Drills() {
         <Link to="/drills/new" className="btn-primary"><Plus size={18} /> Log Drill</Link>
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Drill Type</th>
-              <th>Site</th>
-              <th>Date</th>
-              <th>Participants</th>
-              <th>Status</th>
-              <th style={{ width: '50px' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={7} className="table-message">Loading drills...</td></tr>
-            ) : drills.length === 0 ? (
-              <tr><td colSpan={7} className="table-message">No drills logged yet.</td></tr>
-            ) : (
-              drills.map((drill) => (
-                <tr key={drill.id} className="clickable-row" onClick={() => window.location.href = `/drills/${drill.id}`}>
-                  <td className="font-medium">DRL-{String(drill.drill_number).padStart(4, '0')}</td>
-                  <td>{drill.drill_type}</td>
-                  <td>{drill.site}</td>
-                  <td>{new Date(drill.date).toLocaleDateString()}</td>
-                  <td>{drill.total_participants || '-'}</td>
-                  <td>
-                    <span className={`badge ${drill.status === 'Completed' ? 'severity-low' : drill.status === 'Cancelled' ? 'severity-critical' : 'severity-medium'}`}>
-                      {drill.status}
-                    </span>
-                  </td>
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <button className="btn-icon danger" onClick={() => handleDelete(drill.id)}><Trash2 size={16} /></button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DrillStats total={total} completed={completed} planned={planned} totalParticipants={totalParticipants} />
+
+      <DrillFilters 
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        siteFilter={siteFilter}
+        onSiteChange={setSiteFilter}
+        sitesList={sitesList}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
+
+      <DrillTable 
+        drills={filteredDrills}
+        loading={loading}
+        onDelete={handleDelete}
+      />
     </div>
   );
 }

@@ -221,3 +221,119 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+
+/* Highlight Card */
+.report-highlight-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  padding: 24px 48px;
+  margin-bottom: 24px;
+}
+
+.report-highlight-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.highlight-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #6b7280;
+  letter-spacing: 0.05em;
+}
+
+.highlight-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.highlight-target {
+  font-size: 0.7rem;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.report-highlight-divider {
+  width: 1px;
+  height: 60px;
+  background-color: #bae6fd;
+}
+
+/* KPI Table Remarks */
+.report-remark-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 0.7rem;
+  color: #4b5563;
+  padding: 2px 4px;
+  outline: none;
+  border-bottom: 1px dashed #e5e7eb;
+}
+
+.report-remark-input:focus {
+  border-bottom-color: #2563eb;
+}
+
+/* Status Badges */
+.report-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.report-badge.green { background-color: #d1fae5; color: #065f46; }
+.report-badge.yellow { background-color: #fef3c7; color: #92400e; }
+.report-badge.red { background-color: #fee2e2; color: #991b1b; }
+.report-badge.gray { background-color: #f3f4f6; color: #6b7280; }
+
+/* Simple Bar Chart */
+.simple-bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 120px;
+  padding-top: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.simple-bar-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+  position: relative;
+}
+
+.simple-bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.3s ease;
+}
+
+.simple-bar-label {
+  font-size: 0.6rem;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.simple-bar-value {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+}

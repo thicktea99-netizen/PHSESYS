@@ -1,9 +1,22 @@
 // src/pages/Reports.tsx
 import { useState, useEffect, useRef } from 'react';
-import { FileText, Download, Eye } from 'lucide-react';
+import { Eye, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import ReportHeader from '../components/report/ReportHeader';
+import ReportHighlight from '../components/report/ReportHighlight';
+import ReportKpiTable from '../components/report/ReportKpiTable';
+import ReportClosedLoop from '../components/report/ReportClosedLoop';
+import ReportTrends from '../components/report/ReportTrends';
+import ReportSummary from '../components/report/ReportSummary';
+import ReportPhotos from '../components/report/ReportPhotos';
+import ReportSignOff from '../components/report/ReportSignOff';
+
+import ReportHighRiskTasks from '../components/report/ReportHighRiskTasks';
+
+
+
 import '../styles/Forms.css';
 import '../styles/Reports.css';
 
@@ -13,6 +26,7 @@ const ALL_SECTIONS = [
   { key: 'hazards', label: 'Hazards & Observations' },
   { key: 'capa', label: 'CAPA Status' },
   { key: 'permits', label: 'Permits' },
+  { key: 'high_risk', label: 'High-Risk Tasks' },
   { key: 'equipment', label: 'Equipment' },
   { key: 'ppe', label: 'PPE Checks' },
   { key: 'toolbox', label: 'Toolbox Talks' },
@@ -26,6 +40,7 @@ const ALL_SECTIONS = [
 export default function Reports() {
   const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
   const [companyProfile, setCompanyProfile] = useState<any>({});
+  const [targets, setTargets] = useState<any[]>([]);
   
   const [selectedSite, setSelectedSite] = useState('All');
   const [periodType, setPeriodType] = useState('Weekly');
@@ -47,8 +62,10 @@ export default function Reports() {
   const [approvedByRole, setApprovedByRole] = useState('');
   const [approvedDate, setApprovedDate] = useState('');
 
-  // Targets
-  const [targets, setTargets] = useState<any[]>([]);
+  const [isPdfMode, setIsPdfMode] = useState(false);
+
+  // Remarks
+  const [remarks, setRemarks] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
     fetchSites();
@@ -98,119 +115,265 @@ export default function Reports() {
     }
   };
 
+  const handleRemarkChange = (indicator: string, value: string) => {
+    setRemarks({ ...remarks, [indicator]: value });
+  };
+
   const fetchReportData = async () => {
     setIsGenerating(true);
     try {
       const siteFilter = selectedSite === 'All' ? null : selectedSite;
       const data: any = {};
 
-      if (selectedSections.includes('incidents')) {
-        let q = supabase.from('incidents').select('*').gte('date_of_occurrence', startDate).lte('date_of_occurrence', endDate);
-        if (siteFilter) q = q.eq('site', siteFilter);
-        const { data: incidents } = await q;
-        data.incidents = incidents || [];
-      }
+      // --- CALCULATE PREVIOUS PERIOD DATES ---
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24)) + 1;
+      const prevEnd = new Date(start.getTime() - 1);
+      const prevStart = new Date(prevEnd.getTime() - (diffDays - 1) * 24 * 3600 * 1000);
 
-      if (selectedSections.includes('inspections')) {
-        let q = supabase.from('inspections').select('*').gte('date', startDate).lte('date', endDate);
-        if (siteFilter) q = q.eq('site', siteFilter);
-        const { data: inspections } = await q;
-        data.inspections = inspections || [];
-      }
+      data.periodInfo = {
+        currentStart: startDate,
+        currentEnd: endDate,
+        previousStart: prevStart.toISOString().split('T')[0],
+        previousEnd: prevEnd.toISOString().split('T')[0],
+      };
 
-      if (selectedSections.includes('hazards')) {
-        let q = supabase.from('hazards').select('*').gte('date_observed', startDate).lte('date_observed', endDate);
-        if (siteFilter) q = q.eq('project_site', siteFilter);
-        const { data: hazards } = await q;
-        data.hazards = hazards || [];
-      }
+      // 1. Incidents (Current)
+      let incQ = supabase.from('incidents').select('*').gte('date_of_occurrence', startDate).lte('date_of_occurrence', endDate);
+      if (siteFilter) incQ = incQ.eq('site', siteFilter);
+      const { data: incidents } = await incQ;
+      data.incidents = incidents || [];
 
-      if (selectedSections.includes('capa')) {
-        const { data: capa } = await supabase.from('capa_actions').select('*');
-        data.capa = capa || [];
-      }
+      // 2. Incidents (Previous)
+      let incPrevQ = supabase.from('incidents').select('*').gte('date_of_occurrence', data.periodInfo.previousStart).lte('date_of_occurrence', data.periodInfo.previousEnd);
+      if (siteFilter) incPrevQ = incPrevQ.eq('site', siteFilter);
+      const { data: prevIncidents } = await incPrevQ;
+      data.prevIncidents = prevIncidents || [];
 
-      if (selectedSections.includes('permits')) {
-        let q = supabase.from('permits').select('*').gte('valid_from', startDate).lte('valid_from', endDate);
-        if (siteFilter) q = q.eq('site', siteFilter);
-        const { data: permits } = await q;
-        data.permits = permits || [];
-      }
+      // 3. Inspections
+      let inspQ = supabase.from('inspections').select('*').gte('date', startDate).lte('date', endDate);
+      if (siteFilter) inspQ = inspQ.eq('site', siteFilter);
+      const { data: inspections } = await inspQ;
+      data.inspections = inspections || [];
 
-      if (selectedSections.includes('equipment')) {
-        let q = supabase.from('equipment').select('*');
-        if (siteFilter) q = q.eq('site', siteFilter);
-        const { data: equipment } = await q;
-        data.equipment = equipment || [];
-      }
+      // 4. Hazards
+      let hazQ = supabase.from('hazards').select('*').gte('date_observed', startDate).lte('date_observed', endDate);
+      if (siteFilter) hazQ = hazQ.eq('project_site', siteFilter);
+      const { data: hazards } = await hazQ;
+      data.hazards = hazards || [];
 
-      if (selectedSections.includes('ppe')) {
-        let q = supabase.from('ppe_checks').select('*').gte('date', startDate).lte('date', endDate);
-        if (siteFilter) q = q.eq('site', siteFilter);
-        const { data: ppe } = await q;
-        data.ppe = ppe || [];
-      }
+      // 5. CAPA
+      const { data: capa } = await supabase.from('capa_actions').select('*');
+      data.capa = capa || [];
 
-      if (selectedSections.includes('toolbox')) {
-        let q = supabase.from('toolbox_talks').select('*').gte('date', startDate).lte('date', endDate);
-        if (siteFilter) q = q.eq('site', siteFilter);
-        const { data: tbts } = await q;
-        data.toolbox = tbts || [];
-      }
+      // 6. Permits
+      let permQ = supabase.from('permits').select('*').gte('valid_from', startDate).lte('valid_from', endDate);
+      if (siteFilter) permQ = permQ.eq('site', siteFilter);
+      const { data: permits } = await permQ;
+      data.permits = permits || [];
 
-      if (selectedSections.includes('training')) {
-        const { data: trainings } = await supabase.from('certifications').select('*').gte('created_at', startDate).lte('created_at', endDate + 'T23:59:59');
-        data.training = trainings || [];
-      }
+      // 7. High Risk Tasks from active permit
+            // High-Risk Tasks (from active permits)
+      let hrPermQ = supabase.from('permits').select('*, permit_hazards(control_measure)').eq('status', 'Active');
+      if (siteFilter) hrPermQ = hrPermQ.eq('site', siteFilter);
+      const { data: hrPermits } = await hrPermQ;
+      
+      data.highRiskTasks = (hrPermits || []).map((p: any) => ({
+        permitType: p.permit_type,
+        activity: p.work_description,
+        site: p.site,
+        controlsVerified: p.permit_hazards?.map((h: any) => h.control_measure).filter(Boolean).join(', ') || 'Not verified',
+        status: p.status
+      }));
 
-      if (selectedSections.includes('drills')) {
-        let q = supabase.from('drills').select('*').gte('date', startDate).lte('date', endDate);
-        if (siteFilter) q = q.eq('site', siteFilter);
-        const { data: drills } = await q;
-        data.drills = drills || [];
-      }
+      // 8. Toolbox Talks
+      let tbtQ = supabase.from('toolbox_talks').select('*').gte('date', startDate).lte('date', endDate);
+      if (siteFilter) tbtQ = tbtQ.eq('site', siteFilter);
+      const { data: toolbox } = await tbtQ;
+      data.toolbox = toolbox || [];
 
-      if (selectedSections.includes('audits')) {
-        let q = supabase.from('audits').select('*').gte('audit_date', startDate).lte('audit_date', endDate);
-        if (siteFilter) q = q.eq('site', siteFilter);
-        const { data: audits } = await q;
-        data.audits = audits || [];
-      }
+      // 9. Training
+      const { data: training } = await supabase.from('certifications').select('*').gte('created_at', startDate).lte('created_at', endDate + 'T23:59:59');
+      data.training = training || [];
 
-      if (selectedSections.includes('compliance')) {
-        let q = supabase.from('compliance_register').select('*');
-        if (siteFilter) q = q.eq('site', siteFilter);
-        const { data: compliance } = await q;
-        data.compliance = compliance || [];
-      }
+      // 10. Drills
+      let drillQ = supabase.from('drills').select('*').gte('date', startDate).lte('date', endDate);
+      if (siteFilter) drillQ = drillQ.eq('site', siteFilter);
+      const { data: drills } = await drillQ;
+      data.drills = drills || [];
 
-      if (selectedSections.includes('photos')) {
-        const photoUrls: { url: string, caption: string }[] = [];
-        if (data.incidents) {
-          data.incidents.forEach((i: any) => {
-            if (i.photo_url) photoUrls.push({ url: i.photo_url, caption: `Incident: ${i.description}` });
-          });
-        }
-        if (data.inspections) {
-          for (const insp of data.inspections) {
-            const { data: findings } = await supabase.from('inspection_findings').select('*').eq('inspection_id', insp.id);
-            if (findings) {
-              findings.forEach((f: any) => {
-                if (f.photo_url) photoUrls.push({ url: f.photo_url, caption: `Inspection: ${f.description}` });
-              });
-            }
-          }
-        }
-        if (data.hazards) {
-          data.hazards.forEach((h: any) => {
-            if (h.photo_url) photoUrls.push({ url: h.photo_url, caption: `Hazard: ${h.description}` });
-          });
-        }
-        data.photos = photoUrls;
-      }
+      // 11. Audits
+      let auditQ = supabase.from('audits').select('*').gte('audit_date', startDate).lte('audit_date', endDate);
+      if (siteFilter) auditQ = auditQ.eq('site', siteFilter);
+      const { data: audits } = await auditQ;
+      data.audits = audits || [];
 
+      // 12. Equipment
+      let equipQ = supabase.from('equipment').select('*');
+      if (siteFilter) equipQ = equipQ.eq('site', siteFilter);
+      const { data: equipment } = await equipQ;
+      data.equipment = equipment || [];
+
+      // 13. Compliance
+      let compQ = supabase.from('compliance_register').select('*');
+      if (siteFilter) compQ = compQ.eq('site', siteFilter);
+      const { data: compliance } = await compQ;
+      data.compliance = compliance || [];
+
+      // 14. Snapshots (Man-Hours)
       const { data: snapshots } = await supabase.from('weekly_snapshots').select('*').gte('week_start_date', startDate).lte('week_start_date', endDate).order('week_start_date');
       data.snapshots = snapshots || [];
+
+      // --- CALCULATE KPIs ---
+      const safeManHours = snapshots?.reduce((sum: number, s: any) => sum + (s.safe_man_hours || 0), 0) || 0;
+      const ltiCount = data.incidents.filter((i: any) => i.incident_type === 'lti').length;
+      const prevLtiCount = data.prevIncidents.filter((i: any) => i.incident_type === 'lti').length;
+      const totalHours = snapshots?.reduce((sum: number, s: any) => sum + (s.total_man_hours || 0), 0) || 1;
+      
+      const ltifr = (ltiCount * 1000000) / totalHours;
+      const prevLtifr = (prevLtiCount * 1000000) / totalHours;
+
+      // Days without LTI
+      const { data: ltiData } = await supabase.from('incidents').select('date_of_occurrence').eq('incident_type', 'lti').order('date_of_occurrence', { ascending: false }).limit(1);
+      let daysWithout = 0;
+      if (ltiData && ltiData.length > 0) {
+        const lastLTI = new Date(ltiData[0].date_of_occurrence);
+        daysWithout = Math.max(0, Math.floor((new Date().getTime() - lastLTI.getTime()) / (1000 * 3600 * 24)));
+      }
+
+      // Prepare KPI Rows
+      const getTarget = (key: string) => targets.find(t => t.indicator_key === key)?.target_value ?? '-';
+      const kpiRows = [
+        { indicator: 'LTIFR', thisWeek: ltifr.toFixed(2), previousWeek: prevLtifr.toFixed(2), target: getTarget('ltifr'), trend: ltifr < prevLtifr ? 'down' : ltifr > prevLtifr ? 'up' : 'flat', status: ltifr <= parseFloat(getTarget('ltifr') as string) ? 'on_target' : 'off_target', remark: remarks['LTIFR'] || '' 
+
+        },
+
+        { indicator: 'Incidents', thisWeek: data.incidents.length, previousWeek: data.prevIncidents.length, target: getTarget('incidents'), trend: data.incidents.length < data.prevIncidents.length ? 'down' : data.incidents.length > data.prevIncidents.length ? 'up' : 'flat', status: data.incidents.length === 0 ? 'on_target' : 'off_target', remark: remarks['Incidents'] || '' 
+
+        },
+
+        { indicator: 'Inspections', thisWeek: data.inspections.length, previousWeek: '-', target: getTarget('inspections'), trend: 'flat', status: data.inspections.length > 0 ? 'on_target' : 'needs_attention', remark: remarks['Inspections'] || '' 
+
+        },
+
+        { indicator: 'Hazards', thisWeek: data.hazards.length, previousWeek: '-', target: getTarget('hazards'), trend: 'flat', status: data.hazards.length > 0 ? 'on_target' : 'needs_attention', remark: remarks['Hazards'] || '' 
+
+        },
+
+        { indicator: 'CAPA Open', thisWeek: data.capa.filter((c: any) => c.status !== 'closed').length, previousWeek: '-', target: getTarget('capa_open'), trend: 'flat', status: data.capa.filter((c: any) => c.status !== 'closed').length === 0 ? 'on_target' : 'needs_attention', remark: remarks['CAPA Open'] || '' 
+
+        },
+
+        { indicator: 'Permits Issued', thisWeek: data.permits.length, previousWeek: '-', target: getTarget('permits_issued') || '-', trend: 'flat', status: 'no_target', remark: remarks['Permits Issued'] || '' 
+
+        },
+
+        { indicator: 'Active Permits', thisWeek: data.highRiskTasks.length, previousWeek: '-', target: getTarget('active_permits') || '-', trend: 'flat', status: 'no_target', remark: remarks['Active Permits'] || '' 
+          
+        },
+
+
+      ];
+      data.kpiRows = kpiRows;
+
+      // --- CLOSED-LOOP ITEMS ---
+      const closedLoop: any[] = [];
+      
+      // Open Incidents
+      data.incidents.filter((i: any) => i.status !== 'closed').forEach((i: any) => {
+        closedLoop.push({
+          date: i.date_of_occurrence,
+          issue: `${i.incident_type}: ${i.description}`,
+          location: i.area || i.site,
+          rootCause: 'Pending investigation',
+          correctiveAction: i.immediate_action || 'Pending',
+          owner: i.reporter_name || 'Unassigned',
+          dueDate: '-',
+          status: i.status
+        });
+      });
+
+      // Open CAPA
+      data.capa.filter((c: any) => c.status !== 'closed').forEach((c: any) => {
+        closedLoop.push({
+          date: c.created_at ? new Date(c.created_at).toLocaleDateString() : '-',
+          issue: `CAPA: ${c.action_title}`,
+          location: 'Various',
+          rootCause: c.description || '-',
+          correctiveAction: c.action_type || '-',
+          owner: c.owner || 'Unassigned',
+          dueDate: c.due_date,
+          status: c.status
+        });
+      });
+
+      // Open Hazards
+      data.hazards.filter((h: any) => h.status !== 'closed').forEach((h: any) => {
+        closedLoop.push({
+          date: h.date_observed,
+          issue: `Hazard: ${h.description}`,
+          location: h.area || h.project_site,
+          rootCause: 'Pending',
+          correctiveAction: h.immediate_action || 'Pending',
+          owner: h.observer_name || 'Unassigned',
+          dueDate: '-',
+          status: h.status
+        });
+      });
+
+      data.closedLoop = closedLoop;
+
+      // --- PHOTOS ---
+      const photoUrls: { url: string, caption: string }[] = [];
+      data.incidents.forEach((i: any) => { if (i.photo_url) photoUrls.push({ url: i.photo_url, caption: `Incident: ${i.description}` }); });
+      data.hazards.forEach((h: any) => { if (h.photo_url) photoUrls.push({ url: h.photo_url, caption: `Hazard: ${h.description}` }); });
+      data.photos = photoUrls;
+
+
+    // --- DYNAMIC TREND DATA (Last 6 Months) ---
+
+      
+      const ltifrTrend = [];
+      const incidentsTrend = [];
+
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        const monthName = d.toLocaleString('default', { month: 'short' });
+        const year = d.getFullYear();
+        const monthNum = d.getMonth() + 1;
+        
+        // First and last day of that month
+        const firstDay = new Date(year, monthNum - 1, 1).toISOString().split('T')[0];
+        const lastDay = new Date(year, monthNum, 0).toISOString().split('T')[0];
+
+        // Fetch incidents for this month
+        let monthIncQ = supabase.from('incidents').select('*').gte('date_of_occurrence', firstDay).lte('date_of_occurrence', lastDay);
+        if (siteFilter) monthIncQ = monthIncQ.eq('site', siteFilter);
+        const { data: monthIncidents } = await monthIncQ;
+
+        // Fetch man-hours for this month
+        const { data: monthSnapshots } = await supabase.from('weekly_snapshots').select('*').gte('week_start_date', firstDay).lte('week_start_date', lastDay);
+        
+        const monthHours = monthSnapshots?.reduce((sum: number, s: any) => sum + (s.total_man_hours || 0), 0) || 1;
+        const monthLtiCount = monthIncidents?.filter((i: any) => i.incident_type === 'lti').length || 0;
+        const monthLtifr = (monthLtiCount * 1000000) / monthHours;
+
+        ltifrTrend.push({ month: monthName, value: parseFloat(monthLtifr.toFixed(2)) });
+        incidentsTrend.push({ month: monthName, value: monthIncidents?.length || 0 });
+      }
+
+      data.ltifrTrend = ltifrTrend;
+      data.incidentsTrend = incidentsTrend;
+
+      
+
+      // Safe Man-Hours Target
+      data.safeManHours = safeManHours;
+      data.safeManHoursTarget = getTarget('safe_man_hours');
+      data.daysWithoutLTI = daysWithout;
+      data.ltifr = ltifr;
 
       setReportData(data);
       setShowPreview(true);
@@ -225,6 +388,8 @@ export default function Reports() {
     if (!previewRef.current) return;
     
     setIsGenerating(true);
+    setIsPdfMode(true);
+
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -234,7 +399,7 @@ export default function Reports() {
       const margin = 10;
       const contentWidth = pdfWidth - (margin * 2);
 
-      const sections = previewRef.current.querySelectorAll('.report-section, .report-header, .report-kpi-grid, .report-footer, .report-section-header');
+      const sections = previewRef.current.querySelectorAll('.report-section, .report-header, .report-kpi-grid, .report-footer, .report-section-header, .report-highlight-card');
       
       let currentY = margin;
 
@@ -297,13 +462,8 @@ export default function Reports() {
       alert("Error generating PDF: " + error.message);
     } finally {
       setIsGenerating(false);
+      setIsPdfMode(false);
     }
-  };
-
-  // Helper to get target value by key
-  const getTarget = (key: string) => {
-    const t = targets.find(t => t.indicator_key === key);
-    return t ? t.target_value : '-';
   };
 
   return (
@@ -349,9 +509,7 @@ export default function Reports() {
         </div>
 
         <h3 className="form-section-title mt-32">3. Summary & Recommendations</h3>
-        <div className="form-group">
-          <textarea className="form-input" rows={4} placeholder="Enter a summary or recommendations..." value={summaryNote} onChange={(e) => setSummaryNote(e.target.value)}></textarea>
-        </div>
+        <textarea className="form-input" rows={4} placeholder="Enter summary..." value={summaryNote} onChange={(e) => setSummaryNote(e.target.value)}></textarea>
 
         <h3 className="form-section-title mt-32">4. Sign-Off</h3>
         <div className="form-grid">
@@ -379,314 +537,64 @@ export default function Reports() {
 
           <div className="report-preview-container">
             <div ref={previewRef} className="report-preview">
-              {/* HEADER */}
-              <div className="report-header">
-                <div className="report-brand">
-                  {companyProfile.logo_url && <img src={companyProfile.logo_url} alt="Logo" style={{ maxHeight: '60px', marginBottom: '8px' }} />}
-                  <h1>{companyProfile.company_name || 'Company Name'}</h1>
-                  <p>{companyProfile.address || ''}</p>
-                  <p>{companyProfile.phone || ''} | {companyProfile.email || ''}</p>
-                </div>
-                <div className="report-meta">
-                  <h2>HSE Report</h2>
-                  <p><strong>Report No:</strong> RPT-{Date.now().toString().slice(-6)}</p>
-                  <p><strong>Period:</strong> {startDate} to {endDate}</p>
-                  <p><strong>Site:</strong> {selectedSite}</p>
-                  <p><strong>Prepared By:</strong> {companyProfile.officer_name || 'Officer'}</p>
-                  <p><strong>Role:</strong> {companyProfile.officer_role || 'HSE Manager'}</p>
-                </div>
-              </div>
+              <ReportHeader 
+                companyProfile={companyProfile}
+                reportNumber={`RPT-${Date.now().toString().slice(-6)}`}
+                startDate={startDate}
+                endDate={endDate}
+                selectedSite={selectedSite}
+              />
 
-              {/* SECTION 1: HSE PERFORMANCE */}
-              <div className="report-section-header"><h2>1. HSE Performance</h2></div>
+              <ReportHighlight 
+                daysWithoutLTI={reportData.daysWithoutLTI ?? 0}
+                safeManHours={reportData.safeManHours ?? 0}
+                safeManHoursTarget={reportData.safeManHoursTarget ?? '-'}
+              />
 
-              <div className="report-kpi-grid">
-                <div className="report-kpi-card">
-                  <h4>Man-Hours</h4>
-                  <div className="value">{reportData.snapshots?.reduce((sum: number, s: any) => sum + s.total_man_hours, 0).toLocaleString() || '0'}</div>
-                  <div className="sub">Total this period</div>
-                </div>
-                <div className="report-kpi-card">
-                  <h4>Safe Man-Hours</h4>
-                  <div className="value">{reportData.snapshots?.reduce((sum: number, s: any) => sum + s.safe_man_hours, 0).toLocaleString() || '0'}</div>
-                  <div className="sub">Safe hours</div>
-                </div>
-                <div className="report-kpi-card">
-                  <h4>LTIs</h4>
-                  <div className="value">{reportData.incidents?.filter((i: any) => i.incident_type === 'lti').length || 0}</div>
-                  <div className="sub">Lost Time Injuries</div>
-                </div>
-                <div className="report-kpi-card">
-                  <h4>Days Without LTI</h4>
-                  <div className="value">
-                    {(() => {
-                      const ltiIncidents = reportData.incidents?.filter((i: any) => i.incident_type === 'lti') || [];
-                      if (ltiIncidents.length === 0) return '∞';
-                      const lastLTI = new Date(Math.max(...ltiIncidents.map((i: any) => new Date(i.date_of_occurrence).getTime())));
-                      return Math.floor((new Date().getTime() - lastLTI.getTime()) / (1000 * 3600 * 24));
-                    })()}
-                  </div>
-                  <div className="sub">Consecutive days</div>
-                </div>
-              </div>
+              <ReportKpiTable 
+                rows={reportData.kpiRows || []}
+                remarks={remarks}
+                onRemarkChange={handleRemarkChange}
+                isEditable={!isPdfMode}
+              />
 
-              <div className="report-section">
-                <h3>HSE Performance vs. Targets</h3>
-                <table className="report-table">
-                  <thead>
-                    <tr><th>KPI</th><th>Current</th><th>Target</th><th>Status</th></tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const ltiCount = reportData.incidents?.filter((i: any) => i.incident_type === 'lti').length || 0;
-                      const totalHours = reportData.snapshots?.reduce((sum: number, s: any) => sum + s.total_man_hours, 0) || 1;
-                      const currentLtifr = ((ltiCount * 1000000) / totalHours).toFixed(2);
-                      const ltifrTarget = getTarget('ltifr');
-                      const ltifrStatus = parseFloat(currentLtifr) <= parseFloat(ltifrTarget) ? '🟢 On Target' : '🔴 Off Target';
-                      const incCount = reportData.incidents?.length || 0;
-                      const incStatus = incCount === 0 ? '🟢 On Target' : '🔴 Off Target';
-                      const capaOpen = reportData.capa?.filter((c: any) => c.status !== 'closed').length || 0;
-                      const capaStatus = capaOpen === 0 ? '🟢 On Target' : '🟡 Needs Attention';
 
-                      return (
-                        <>
-                          <tr><td>LTIFR</td><td>{currentLtifr}</td><td>{ltifrTarget}</td><td>{ltifrStatus}</td></tr>
-                          <tr><td>Incidents</td><td>{incCount}</td><td>{getTarget('incidents')}</td><td>{incStatus}</td></tr>
-                          <tr><td>CAPA Open</td><td>{capaOpen}</td><td>{getTarget('capa_open')}</td><td>{capaStatus}</td></tr>
-                        </>
-                      );
-                    })()}
-                  </tbody>
-                </table>
-              </div>
+              <ReportTrends 
+                ltifrData={reportData.ltifrTrend || []}
+                incidentsData={reportData.incidentsTrend || []}
+              />
 
-              {/* SECTION 2: LAGGING INDICATORS */}
-              <div className="report-section-header"><h2>2. Lagging Indicators</h2></div>
 
-              {reportData.incidents && reportData.incidents.length > 0 && (
-                <div className="report-section">
-                  <h3>Incidents ({reportData.incidents.length})</h3>
-                  <table className="report-table">
-                    <thead><tr><th>Date</th><th>Type</th><th>Severity</th><th>Status</th></tr></thead>
-                    <tbody>
-                      {reportData.incidents.map((i: any) => (
-                        <tr key={i.id}><td>{i.date_of_occurrence}</td><td>{i.incident_type}</td><td>{i.severity}</td><td>{i.status}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+
+              <ReportClosedLoop 
+                items={reportData.closedLoop || []}
+              />
+
+              {selectedSections.includes('high_risk') && (
+                <ReportHighRiskTasks 
+                  tasks={reportData.highRiskTasks || []}
+                />
               )}
 
-              {reportData.capa && reportData.capa.length > 0 && (
-                <div className="report-section">
-                  <h3>CAPA Status</h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '32px', padding: '16px' }}>
-                    <svg width="120" height="120" viewBox="0 0 120 120">
-                      <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" strokeWidth="20" />
-                      {(() => {
-                        const total = reportData.capa.length;
-                        const open = reportData.capa.filter((c: any) => c.status === 'open').length;
-                        const inProgress = reportData.capa.filter((c: any) => c.status === 'in progress').length;
-                        const closed = reportData.capa.filter((c: any) => c.status === 'closed').length;
-                        const circumference = 2 * Math.PI * 50;
-                        const openDash = (open / total) * circumference;
-                        const inProgressDash = (inProgress / total) * circumference;
-                        const closedDash = (closed / total) * circumference;
-                        let offset = 0;
-                        return (
-                          <>
-                            <circle cx="60" cy="60" r="50" fill="none" stroke="#ef4444" strokeWidth="20" strokeDasharray={`${openDash} ${circumference - openDash}`} strokeDashoffset={offset} transform="rotate(-90 60 60)" />
-                            {(() => { offset -= openDash; return null; })()}
-                            <circle cx="60" cy="60" r="50" fill="none" stroke="#f59e0b" strokeWidth="20" strokeDasharray={`${inProgressDash} ${circumference - inProgressDash}`} strokeDashoffset={offset} transform="rotate(-90 60 60)" />
-                            {(() => { offset -= inProgressDash; return null; })()}
-                            <circle cx="60" cy="60" r="50" fill="none" stroke="#10b981" strokeWidth="20" strokeDasharray={`${closedDash} ${circumference - closedDash}`} strokeDashoffset={offset} transform="rotate(-90 60 60)" />
-                          </>
-                        );
-                      })()}
-                      <text x="60" y="55" textAnchor="middle" fontSize="20" fontWeight="bold" fill="#1f2937">{reportData.capa.length}</text>
-                      <text x="60" y="70" textAnchor="middle" fontSize="10" fill="#6b7280">Total</text>
-                    </svg>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ width: '12px', height: '12px', backgroundColor: '#ef4444', borderRadius: '2px' }}></span><span style={{ fontSize: '0.8rem' }}>Open: {reportData.capa.filter((c: any) => c.status === 'open').length}</span></div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ width: '12px', height: '12px', backgroundColor: '#f59e0b', borderRadius: '2px' }}></span><span style={{ fontSize: '0.8rem' }}>In Progress: {reportData.capa.filter((c: any) => c.status === 'in progress').length}</span></div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ width: '12px', height: '12px', backgroundColor: '#10b981', borderRadius: '2px' }}></span><span style={{ fontSize: '0.8rem' }}>Closed: {reportData.capa.filter((c: any) => c.status === 'closed').length}</span></div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              
 
-              {reportData.audits && reportData.audits.length > 0 && (
-                <div className="report-section">
-                  <h3>Audits ({reportData.audits.length})</h3>
-                  <table className="report-table">
-                    <thead><tr><th>Date</th><th>Title</th><th>Type</th><th>Status</th></tr></thead>
-                    <tbody>
-                      {reportData.audits.map((a: any) => (
-                        <tr key={a.id}><td>{a.audit_date}</td><td>{a.title}</td><td>{a.audit_type}</td><td>{a.status}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <ReportSummary 
+                summaryNote={summaryNote}
+              />
 
-              {/* SECTION 3: LEADING INDICATORS */}
-              <div className="report-section-header"><h2>3. Leading Indicators</h2></div>
+              <ReportPhotos 
+                photos={reportData.photos || []}
+              />
 
-              {reportData.inspections && reportData.inspections.length > 0 && (
-                <div className="report-section">
-                  <h3>Inspections ({reportData.inspections.length})</h3>
-                  <table className="report-table">
-                    <thead><tr><th>Date</th><th>Type</th><th>Site</th></tr></thead>
-                    <tbody>
-                      {reportData.inspections.map((i: any) => (
-                        <tr key={i.id}><td>{i.date}</td><td>{i.inspection_type}</td><td>{i.site}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <ReportSignOff 
+                reviewedBy={reviewedBy}
+                reviewedByRole={reviewedByRole}
+                reviewedDate={reviewedDate}
+                approvedBy={approvedBy}
+                approvedByRole={approvedByRole}
+                approvedDate={approvedDate}
+              />
 
-              {reportData.hazards && reportData.hazards.length > 0 && (
-                <div className="report-section">
-                  <h3>Hazards & Observations ({reportData.hazards.length})</h3>
-                  <table className="report-table">
-                    <thead><tr><th>Date</th><th>Type</th><th>Risk Score</th><th>Status</th></tr></thead>
-                    <tbody>
-                      {reportData.hazards.map((h: any) => (
-                        <tr key={h.id}><td>{h.date_observed}</td><td>{h.entry_type}</td><td>{h.risk_score || '-'}</td><td>{h.status}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {reportData.toolbox && reportData.toolbox.length > 0 && (
-                <div className="report-section">
-                  <h3>Toolbox Talks ({reportData.toolbox.length})</h3>
-                  <table className="report-table">
-                    <thead><tr><th>Date</th><th>Topic</th><th>Presenter</th><th>Attendees</th></tr></thead>
-                    <tbody>
-                      {reportData.toolbox.map((t: any) => (
-                        <tr key={t.id}><td>{t.date}</td><td>{t.topic}</td><td>{t.presenter_name}</td><td>{t.attendee_count}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {reportData.permits && reportData.permits.length > 0 && (
-                <div className="report-section">
-                  <h3>Permits ({reportData.permits.length})</h3>
-                  <table className="report-table">
-                    <thead><tr><th>Type</th><th>Work Description</th><th>Status</th></tr></thead>
-                    <tbody>
-                      {reportData.permits.map((p: any) => (
-                        <tr key={p.id}><td>{p.permit_type}</td><td>{p.work_description}</td><td>{p.status}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {reportData.equipment && reportData.equipment.length > 0 && (
-                <div className="report-section">
-                  <h3>Equipment ({reportData.equipment.length})</h3>
-                  <table className="report-table">
-                    <thead><tr><th>Name</th><th>Type</th><th>Status</th></tr></thead>
-                    <tbody>
-                      {reportData.equipment.map((e: any) => (
-                        <tr key={e.id}><td>{e.name}</td><td>{e.type}</td><td>{e.status}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {reportData.training && reportData.training.length > 0 && (
-                <div className="report-section">
-                  <h3>Training & Certifications ({reportData.training.length})</h3>
-                  <table className="report-table">
-                    <thead><tr><th>Person</th><th>Certification</th><th>Expiry</th></tr></thead>
-                    <tbody>
-                      {reportData.training.map((t: any) => (
-                        <tr key={t.id}><td>{t.person_name}</td><td>{t.cert_type}</td><td>{t.expiry_date}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {reportData.drills && reportData.drills.length > 0 && (
-                <div className="report-section">
-                  <h3>Drills & Exercises ({reportData.drills.length})</h3>
-                  <table className="report-table">
-                    <thead><tr><th>Date</th><th>Type</th><th>Participants</th><th>Status</th></tr></thead>
-                    <tbody>
-                      {reportData.drills.map((d: any) => (
-                        <tr key={d.id}><td>{d.date}</td><td>{d.drill_type}</td><td>{d.total_participants}</td><td>{d.status}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {reportData.compliance && reportData.compliance.length > 0 && (
-                <div className="report-section">
-                  <h3>Compliance Status</h3>
-                  <table className="report-table">
-                    <thead><tr><th>Obligation</th><th>Expiry</th><th>Status</th></tr></thead>
-                    <tbody>
-                      {reportData.compliance.map((c: any) => (
-                        <tr key={c.id}><td>{c.obligation_name}</td><td>{c.expiry_date || '-'}</td><td>{c.status || '-'}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* SECTION 4: SUMMARY */}
-              <div className="report-section-header"><h2>4. Summary & Recommendations</h2></div>
-              <div className="report-section">
-                <p style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>{summaryNote || 'No summary provided.'}</p>
-              </div>
-
-              {/* SECTION 5: PHOTO EVIDENCE */}
-              <div className="report-section-header"><h2>5. Photo Evidence</h2></div>
-              {reportData.photos && reportData.photos.length > 0 ? (
-                <div className="report-section">
-                  <div className="report-photos-grid">
-                    {reportData.photos.map((photo: any, index: number) => (
-                      <div key={index} className="report-photo-item">
-                        <img src={photo.url} alt="Evidence" />
-                        <p>{photo.caption}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="report-section"><p style={{ fontSize: '0.85rem', color: '#6b7280' }}>No photos available for this period.</p></div>
-              )}
-
-              {/* SECTION 6: SIGN-OFF */}
-              <div className="report-section-header"><h2>6. Sign-Off</h2></div>
-              <div className="report-section">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                  <div>
-                    <h4 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '8px' }}>Reviewed By:</h4>
-                    <p style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Name: {reviewedBy || '_________________'}</p>
-                    <p style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Role: {reviewedByRole || '_________________'}</p>
-                    <p style={{ fontSize: '0.8rem' }}>Date: {reviewedDate || '_________________'}</p>
-                  </div>
-                  <div>
-                    <h4 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '8px' }}>Approved By:</h4>
-                    <p style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Name: {approvedBy || '_________________'}</p>
-                    <p style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Role: {approvedByRole || '_________________'}</p>
-                    <p style={{ fontSize: '0.8rem' }}>Date: {approvedDate || '_________________'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* FOOTER */}
               <div className="report-footer">
                 <p>Generated on {new Date().toLocaleString()} • {companyProfile.company_name} • Confidential</p>
               </div>

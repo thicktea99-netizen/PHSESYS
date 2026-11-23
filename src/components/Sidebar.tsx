@@ -4,7 +4,7 @@ import {
   LayoutDashboard, AlertTriangle, ClipboardCheck, AlertCircle, 
   MessageSquare, FileText, Shield, FileCheck, GraduationCap, 
   FolderOpen, Settings, Users, ChevronDown, ChevronRight, Wrench, 
-  ShieldAlert, FileSearch, Siren, Phone, BookOpen 
+  ShieldAlert, FileSearch, Siren, Phone, BookOpen, UserPlus, FolderKanban
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import '../styles/Sidebar.css';
@@ -110,6 +110,14 @@ export default function Sidebar() {
                 <FileText size={18} />
                 <span>Man-Hours Log</span>
               </Link>
+
+              {/* // Projects */}
+              <Link to="/projects" className={`nav-item ${location.pathname.startsWith('/projects') ? 'active' : ''}`}>
+                <FolderKanban size={18} />
+                <span>Projects</span>
+              </Link>
+
+
             </div>
           )}
         </div>
@@ -131,10 +139,23 @@ export default function Sidebar() {
                 <Users size={18} />
                 <span>People & Contractors</span>
               </Link>
+
               <Link to="/toolbox-talks" className={`nav-item ${location.pathname.startsWith('/toolbox-talks') ? 'active' : ''}`}>
                 <MessageSquare size={18} />
                 <span>Toolbox Talks</span>
               </Link>
+
+              <Link to="/training-sessions" className={`nav-item ${location.pathname.startsWith('/training-sessions') ? 'active' : ''}`}>
+                <BookOpen size={18} />
+                <span>Training Sessions</span>
+              </Link>
+              
+              <Link to="/inductions" className={`nav-item ${location.pathname.startsWith('/inductions') ? 'active' : ''}`}>
+                <UserPlus size={18} />
+                <span>Inductions</span>
+              </Link>
+
+
               <Link to="/training" className={`nav-item ${location.pathname.startsWith('/training') ? 'active' : ''}`}>
                 <GraduationCap size={18} />
                 <span>Certifications</span>

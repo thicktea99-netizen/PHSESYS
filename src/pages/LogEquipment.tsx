@@ -1,12 +1,15 @@
 // src/pages/LogEquipment.tsx
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Paperclip } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import '../styles/Forms.css';
 import '../styles/LogInspection.css';
 
 export default function LogEquipment() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
   const [name, setName] = useState('');
   const [type, setType] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
@@ -21,8 +24,10 @@ export default function LogEquipment() {
   const [nextInspectionDue, setNextInspectionDue] = useState('');
   
   const [notes, setNotes] = useState('');
+  const [existingFile, setExistingFile] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
+  const [loading, setLoading] = useState(!!id);
 
   useEffect(() => {
     const fetchSites = async () => {
@@ -30,7 +35,33 @@ export default function LogEquipment() {
       if (data) setSitesList(data);
     };
     fetchSites();
-  }, []);
+    if (id) fetchEquipment();
+  }, [id]);
+
+  const fetchEquipment = async () => {
+    try {
+      const { data, error } = await supabase.from('equipment').select('*').eq('id', id).single();
+      if (error) throw error;
+      
+      setName(data.name || '');
+      setType(data.type || '');
+      setSerialNumber(data.serial_number || '');
+      setSite(data.site || '');
+      setStatus(data.status || 'In Service');
+      setAssignedToName(data.assigned_to_name || '');
+      setAssignedToRole(data.assigned_to_role || '');
+      setAssignedToContact(data.assigned_to_contact || '');
+      setLastInspectionDate(data.last_inspection_date || '');
+      setNextInspectionDue(data.next_inspection_due || '');
+      setNotes(data.notes || '');
+      setExistingFile(data.photo_url || '');
+    } catch (error: any) {
+      alert("Error loading equipment: " + error.message);
+      navigate('/equipment');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!name || !type) {
@@ -43,7 +74,7 @@ export default function LogEquipment() {
     }
 
     try {
-      let photoUrl = null;
+      let photoUrl = existingFile;
       if (selectedFile) {
         const fileExt = selectedFile.name.split('.').pop();
         const fileName = `equip-${Date.now()}.${fileExt}`;
@@ -53,32 +84,42 @@ export default function LogEquipment() {
         photoUrl = urlData.publicUrl;
       }
 
-      const { error } = await supabase
-        .from('equipment')
-        .insert([{
-          name, type, serial_number: serialNumber, site, status,
-          assigned_to_name: assignedToName, assigned_to_role: assignedToRole, assigned_to_contact: assignedToContact,
-          last_inspection_date: lastInspectionDate || null,
-          next_inspection_due: nextInspectionDue || null,
-          photo_url: photoUrl, notes
+      const payload = {
+        name, type, serial_number: serialNumber, site, status,
+        assigned_to_name: assignedToName, assigned_to_role: assignedToRole, assigned_to_contact: assignedToContact,
+        last_inspection_date: lastInspectionDate || null,
+        next_inspection_due: nextInspectionDue || null,
+        photo_url: photoUrl, notes
+      };
+
+      if (!id) {
+        const { error } = await supabase.from('equipment').insert([payload]);
+        if (error) throw error;
+        await supabase.from('audit_logs').insert([{
+          module: 'Equipment',
+          action: 'Registered Equipment',
+          reference: name
         }]);
+      } else {
+        const { error } = await supabase.from('equipment').update(payload).eq('id', id);
+        if (error) throw error;
+      }
 
-      if (error) throw error;
-
-      alert("Equipment registered successfully!");
-      window.location.href = '/equipment';
-
+      alert("Equipment saved successfully!");
+      navigate('/equipment');
     } catch (error: any) {
       alert("Error saving equipment: " + error.message);
     }
   };
+
+  if (loading) return <div style={{ padding: '40px' }}>Loading...</div>;
 
   return (
     <div>
       <div className="page-header">
         <div className="header-left">
           <Link to="/equipment" className="back-link"><ArrowLeft size={24} /></Link>
-          <div><h1>Register Equipment</h1><p className="page-subtitle">Add a new tool, plant, or vehicle to the register.</p></div>
+          <div><h1>{id ? 'Edit Equipment' : 'Register Equipment'}</h1><p className="page-subtitle">Add a new tool, plant, or vehicle to the register.</p></div>
         </div>
       </div>
 
@@ -136,11 +177,12 @@ export default function LogEquipment() {
         </div>
 
         <h3 className="form-section-title mt-32">4. Photo & Notes</h3>
+        {existingFile && <div className="mb-12"><a href={existingFile} target="_blank" rel="noreferrer" className="evidence-link">View Current Photo</a></div>}
         <div className="upload-container">
           <input type="file" id="equip-file" className="hidden-input" onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)} />
           <label htmlFor="equip-file" className="upload-label">
             <Paperclip size={24} color="var(--text-muted)" />
-            <span className="upload-text">{selectedFile ? selectedFile.name : "Upload Photo / Certificate"}</span>
+            <span className="upload-text">{selectedFile ? selectedFile.name : "Upload New Photo / Certificate"}</span>
           </label>
         </div>
         <div className="form-group mt-16"><label>Notes</label><textarea className="form-input" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)}></textarea></div>

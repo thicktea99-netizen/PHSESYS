@@ -17,7 +17,6 @@ export default function LogDrill() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // --- DRILL STATE ---
   const [drillType, setDrillType] = useState('');
   const [site, setSite] = useState('');
   const [area, setArea] = useState('');
@@ -32,14 +31,9 @@ export default function LogDrill() {
   const [requiresCapa, setRequiresCapa] = useState(false);
   const [status, setStatus] = useState('Completed');
   
-  // --- FILE UPLOAD ---
   const [existingFile, setExistingFile] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-  // --- PERSONNEL ---
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
-
-  // --- DYNAMIC DATA ---
   const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
   const [drillTypes, setDrillTypes] = useState<{ id: string, option_value: string }[]>([]);
   const [loading, setLoading] = useState(!!id);
@@ -88,9 +82,7 @@ export default function LogDrill() {
     }
   };
 
-  const addPersonnel = () => {
-    setPersonnel([...personnel, { id: Date.now(), role: 'Drill Coordinator', name: '', contact: '' }]);
-  };
+  const addPersonnel = () => setPersonnel([...personnel, { id: Date.now(), role: 'Drill Coordinator', name: '', contact: '' }]);
   const removePersonnel = (id: number) => setPersonnel(personnel.filter(p => p.id !== id));
   const updatePersonnel = (id: number, field: keyof Personnel, value: string) => {
     setPersonnel(personnel.map(p => p.id === id ? { ...p, [field]: value } : p));
@@ -116,7 +108,7 @@ export default function LogDrill() {
         const fileName = `drill-${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage.from('inspection-photos').upload(fileName, selectedFile);
         if (uploadError) throw uploadError;
-        const { data: urlData } = await supabase.storage.from('inspection-photos').getPublicUrl(fileName);
+        const { data: urlData } = supabase.storage.from('inspection-photos').getPublicUrl(fileName);
         evidenceUrl = urlData.publicUrl;
       }
 
@@ -131,41 +123,56 @@ export default function LogDrill() {
       };
 
       let drillId = id;
+      let drillNumber = null;
+
       if (!drillId) {
         const { data, error } = await supabase.from('drills').insert([payload]).select().single();
         if (error) throw error;
         drillId = data.id;
+        drillNumber = data.drill_number;
 
-        // Log to audit trail
         await supabase.from('audit_logs').insert([{
           module: 'Drills',
           action: 'Logged Drill',
           reference: `DRL-${String(data.drill_number).padStart(4, '0')}`
         }]);
-
-        // Auto-generate CAPA if required
-        if (requiresCapa) {
-          await supabase.from('capa_actions').insert([{
-            action_title: `Drill Finding: ${drillType}`,
-            description: findings || 'Drill findings require corrective action.',
-            source_type: 'Drill',
-            source_reference: `DRL-${String(data.drill_number).padStart(4, '0')}`,
-            action_type: 'Corrective', priority: 'Medium',
-            owner: 'Unassigned',
-            due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            status: 'open'
-          }]);
-        }
       } else {
         const { error } = await supabase.from('drills').update(payload).eq('id', drillId);
         if (error) throw error;
         await supabase.from('drill_personnel').delete().eq('drill_id', drillId);
+
+        const { data: existing } = await supabase.from('drills').select('drill_number').eq('id', drillId).single();
+        drillNumber = existing?.drill_number;
       }
 
       if (personnel.length > 0) {
         const personnelData = personnel.map(p => ({ drill_id: drillId, role: p.role, name: p.name, contact: p.contact }));
         const { error: pError } = await supabase.from('drill_personnel').insert(personnelData);
         if (pError) throw pError;
+      }
+
+      // Handle CAPA creation separately with error logging
+      if (requiresCapa && drillNumber) {
+        const capaPayload = {
+          action_title: `Drill Finding: ${drillType}`,
+          description: findings || 'Drill findings require corrective action.',
+          source_type: 'Drill',
+          source_reference: `DRL-${String(drillNumber).padStart(4, '0')}`,
+          action_type: 'Corrective',
+          priority: 'Medium',
+          owner: 'Unassigned',
+          due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          status: 'open'
+        };
+        
+        const { error: capaError } = await supabase.from('capa_actions').insert([capaPayload]);
+        
+        if (capaError) {
+          console.error("CAPA creation failed:", capaError);
+          alert("Drill saved, but CAPA creation failed: " + capaError.message);
+        } else {
+          console.log("CAPA action created successfully");
+        }
       }
 
       alert("Drill saved successfully!");
@@ -181,9 +188,7 @@ export default function LogDrill() {
     <div>
       <div className="page-header">
         <div className="header-left">
-
           <Link to="/drills" className="back-link"><ArrowLeft size={24} /></Link>
-
           <div><h1>{id ? 'Edit Drill' : 'Log Drill / Exercise'}</h1><p className="page-subtitle">Record an emergency drill or exercise.</p></div>
         </div>
       </div>

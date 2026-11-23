@@ -1,9 +1,12 @@
 // src/pages/Hazards.tsx
 import { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import '../styles/Inspections.css';
+import HazardStats from '../components/hazards/HazardStats';
+import HazardFilters from '../components/hazards/HazardFilters';
+import HazardTable from '../components/hazards/HazardTable';
+import '../styles/Incidents.css';
 
 interface Hazard {
   id: string;
@@ -12,7 +15,6 @@ interface Hazard {
   project_site: string;
   area: string;
   description: string;
-  severity: string;
   risk_score: number;
   date_observed: string;
   status: string;
@@ -22,8 +24,16 @@ interface Hazard {
 export default function Hazards() {
   const [hazards, setHazards] = useState<Hazard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
+  
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [siteFilter, setSiteFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => { fetchHazards(); }, []);
+  useEffect(() => {
+    fetchHazards();
+    fetchSites();
+  }, []);
 
   const fetchHazards = async () => {
     try {
@@ -38,28 +48,37 @@ export default function Hazards() {
     }
   };
 
-  const updateStatusInline = async (id: string, newStatus: string) => {
+  const fetchSites = async () => {
+    const { data } = await supabase.from('sites').select('id, name').eq('status', 'active');
+    if (data) setSitesList(data);
+  };
+
+  const handleStatusChange = async (id: string, newStatus: string) => {
     setHazards(hazards.map(h => h.id === id ? { ...h, status: newStatus } : h));
-    const { error } = await supabase.from('hazards').update({ status: newStatus }).eq('id', id);
-    if (error) { alert(error.message); fetchHazards(); }
+    await supabase.from('hazards').update({ status: newStatus }).eq('id', id);
   };
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this hazard?")) return;
-    try {
-      const { error } = await supabase.from('hazards').delete().eq('id', id);
-      if (error) throw error;
-      setHazards(hazards.filter(h => h.id !== id));
-    } catch (error: any) { alert(error.message); }
+    await supabase.from('hazards').delete().eq('id', id);
+    setHazards(hazards.filter(h => h.id !== id));
   };
 
-  const getRiskColor = (score: number) => {
-    if (!score) return 'severity-low';
-    if (score <= 4) return 'severity-low';
-    if (score <= 9) return 'severity-medium';
-    if (score <= 15) return 'severity-high';
-    return 'severity-critical';
-  };
+  // Filter logic
+  const filteredHazards = hazards.filter(hazard => {
+    const matchesStatus = statusFilter === 'All' || hazard.status === statusFilter;
+    const matchesSite = siteFilter === 'All' || hazard.project_site === siteFilter;
+    const matchesSearch = searchQuery === '' || 
+      hazard.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      hazard.entry_type.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesStatus && matchesSite && matchesSearch;
+  });
+
+  // Stats
+  const total = hazards.length;
+  const open = hazards.filter(h => h.status !== 'closed').length;
+  const closed = hazards.filter(h => h.status === 'closed').length;
+  const highRisk = hazards.filter(h => (h.risk_score || 0) >= 15).length;
 
   return (
     <div>
@@ -68,71 +87,27 @@ export default function Hazards() {
           <h1>Hazard & Observation Register</h1>
           <p className="page-subtitle">Track hazards, unsafe acts, and positive observations.</p>
         </div>
-        <Link to="/hazards/new" className="btn-primary"><Plus size={18} /> Log Observation</Link>
+        <Link to="/hazards/new" className="btn-primary"><Plus size={18} /> Log Hazard</Link>
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Description</th>
-              <th>Risk Score</th>
-              <th>Photo</th>
-              <th>Status</th>
-              <th style={{ width: '50px' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={8} className="table-message">Loading hazards...</td></tr>
-            ) : hazards.length === 0 ? (
-              <tr><td colSpan={8} className="table-message">No hazards logged yet.</td></tr>
-            ) : (
-              hazards.map((hazard) => (
-                <tr key={hazard.id}
-                  className="clickable-row"
-                  onClick = {() => window.location.href = `/hazards/${hazard.id}`}
-                >
-                  <td className="font-medium">HAZ-{String(hazard.hazard_number).padStart(4, '0')}</td>
-                  <td>{hazard.date_observed}</td>
-                  <td>{hazard.entry_type}</td>
-                  <td style={{ maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {hazard.description}
-                  </td>
-                  <td>
-                    {hazard.risk_score ? (
-                      <span className={`badge ${getRiskColor(hazard.risk_score)}`}>
-                        {hazard.risk_score} / 25
-                      </span>
-                    ) : (
-                      <span style={{ color: 'var(--text-muted)' }}>-</span>
-                    )}
-                  </td>
-                  <td>
-                    {hazard.photo_url ? (
-                      <a href={hazard.photo_url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>View</a>
-                    ) : (
-                      <span style={{ color: 'var(--text-muted)' }}>None</span>
-                    )}
-                  </td>
-                  <td onClick = {(e) => e.stopPropagation()}>
-                    <select value={hazard.status} onChange={(e) => updateStatusInline(hazard.id, e.target.value)} className={`table-select status-${hazard.status.replace(' ', '-')}`}>
-                      <option value="open">Open</option>
-                      <option value="closed">Closed</option>
-                    </select>
-                  </td>
-                  <td onClick = {(e) => e.stopPropagation()}>
-                    <button className="btn-icon danger" onClick={() => handleDelete(hazard.id)}><Trash2 size={16} /></button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <HazardStats total={total} open={open} closed={closed} highRisk={highRisk} />
+
+      <HazardFilters 
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        siteFilter={siteFilter}
+        onSiteChange={setSiteFilter}
+        sitesList={sitesList}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
+
+      <HazardTable 
+        hazards={filteredHazards}
+        loading={loading}
+        onStatusChange={handleStatusChange}
+        onDelete={handleDelete}
+      />
     </div>
   );
 }

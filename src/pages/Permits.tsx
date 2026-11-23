@@ -1,9 +1,12 @@
 // src/pages/Permits.tsx
 import { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import '../styles/Inspections.css';
+import PermitStats from '../components/permits/PermitStats';
+import PermitFilters from '../components/permits/PermitFilters';
+import PermitTable from '../components/permits/PermitTable';
+import '../styles/Incidents.css';
 
 interface Permit {
   id: string;
@@ -19,8 +22,16 @@ interface Permit {
 export default function Permits() {
   const [permits, setPermits] = useState<Permit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
+  
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [siteFilter, setSiteFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => { fetchPermits(); }, []);
+  useEffect(() => {
+    fetchPermits();
+    fetchSites();
+  }, []);
 
   const fetchPermits = async () => {
     try {
@@ -35,25 +46,37 @@ export default function Permits() {
     }
   };
 
-  const updateStatusInline = async (id: string, newStatus: string) => {
+  const fetchSites = async () => {
+    const { data } = await supabase.from('sites').select('id, name').eq('status', 'active');
+    if (data) setSitesList(data);
+  };
+
+  const handleStatusChange = async (id: string, newStatus: string) => {
     setPermits(permits.map(p => p.id === id ? { ...p, status: newStatus } : p));
-    const { error } = await supabase.from('permits').update({ status: newStatus }).eq('id', id);
-    if (error) {
-      alert("Failed to update status: " + error.message);
-      fetchPermits();
-    }
+    await supabase.from('permits').update({ status: newStatus }).eq('id', id);
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this permit?")) return;
-    try {
-      const { error } = await supabase.from('permits').delete().eq('id', id);
-      if (error) throw error;
-      setPermits(permits.filter(p => p.id !== id));
-    } catch (error: any) {
-      alert("Error deleting permit: " + error.message);
-    }
+    if (!window.confirm("Delete this permit?")) return;
+    await supabase.from('permits').delete().eq('id', id);
+    setPermits(permits.filter(p => p.id !== id));
   };
+
+  // Filter logic
+  const filteredPermits = permits.filter(permit => {
+    const matchesStatus = statusFilter === 'All' || permit.status === statusFilter;
+    const matchesSite = siteFilter === 'All' || permit.site === siteFilter;
+    const matchesSearch = searchQuery === '' || 
+      permit.work_description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      permit.receiver_name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesStatus && matchesSite && matchesSearch;
+  });
+
+  // Stats
+  const total = permits.length;
+  const active = permits.filter(p => p.status === 'Active').length;
+  const closed = permits.filter(p => p.status === 'Closed').length;
+  const expired = permits.filter(p => p.valid_to && new Date(p.valid_to) < new Date() && p.status === 'Active').length;
 
   return (
     <div>
@@ -65,61 +88,24 @@ export default function Permits() {
         <Link to="/permits/new" className="btn-primary"><Plus size={18} /> Issue Permit</Link>
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Type</th>
-              <th>Work Description</th>
-              <th>Receiver</th>
-              <th>Valid To</th>
-              <th>Status</th>
-              <th style={{ width: '50px' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={7} className="table-message">Loading permits...</td></tr>
-            ) : permits.length === 0 ? (
-              <tr><td colSpan={7} className="table-message">No permits issued yet. Click "Issue Permit" to add one.</td></tr>
-            ) : (
-              permits.map((permit) => (
-                <tr 
-                  key={permit.id} 
-                  className="clickable-row" 
-                  onClick={() => window.location.href = `/permits/${permit.id}`}
-                >
-                  <td className="font-medium">PTW-{String(permit.permit_number).padStart(4, '0')}</td>
-                  <td>{permit.permit_type}</td>
-                  <td>{permit.work_description}</td>
-                  <td>{permit.receiver_name}</td>
-                  <td>{new Date(permit.valid_to).toLocaleString()}</td>
-                  
-                  {/* STATUS DROPDOWN - Stop propagation here */}
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <select 
-                      value={permit.status} 
-                      onChange={(e) => updateStatusInline(permit.id, e.target.value)} 
-                      className={`table-select status-${permit.status.replace(' ', '-').toLowerCase()}`}
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Suspended">Suspended</option>
-                      <option value="Cancelled">Cancelled</option>
-                      <option value="Closed">Closed</option>
-                    </select>
-                  </td>
-                  
-                  {/* DELETE BUTTON - Stop propagation here */}
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <button className="btn-icon danger" onClick={() => handleDelete(permit.id)}><Trash2 size={16} /></button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <PermitStats total={total} active={active} closed={closed} expired={expired} />
+
+      <PermitFilters 
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        siteFilter={siteFilter}
+        onSiteChange={setSiteFilter}
+        sitesList={sitesList}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
+
+      <PermitTable 
+        permits={filteredPermits}
+        loading={loading}
+        onStatusChange={handleStatusChange}
+        onDelete={handleDelete}
+      />
     </div>
   );
 }

@@ -1,9 +1,12 @@
 // src/pages/PpeChecks.tsx
 import { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import '../styles/Inspections.css';
+import PpeStats from '../components/ppe/PpeStats';
+import PpeFilters from '../components/ppe/PpeFilters';
+import PpeTable from '../components/ppe/PpeTable';
+import '../styles/Incidents.css';
 
 interface PpeCheck {
   id: string;
@@ -17,8 +20,19 @@ interface PpeCheck {
 export default function PpeChecks() {
   const [checks, setChecks] = useState<PpeCheck[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
+  const [totalCompliant, setTotalCompliant] = useState(0);
+  const [totalNonCompliant, setTotalNonCompliant] = useState(0);
+  const [checksThisMonth, setChecksThisMonth] = useState(0);
 
-  useEffect(() => { fetchChecks(); }, []);
+  const [siteFilter, setSiteFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    fetchChecks();
+    fetchSites();
+    fetchLinesStats();
+  }, []);
 
   const fetchChecks = async () => {
     try {
@@ -33,61 +47,72 @@ export default function PpeChecks() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this PPE check?")) return;
-    try {
-      const { error } = await supabase.from('ppe_checks').delete().eq('id', id);
-      if (error) throw error;
-      setChecks(checks.filter(c => c.id !== id));
-    } catch (error: any) {
-      alert("Error deleting check: " + error.message);
-    }
+  const fetchSites = async () => {
+    const { data } = await supabase.from('sites').select('id, name').eq('status', 'active');
+    if (data) setSitesList(data);
   };
+
+  const fetchLinesStats = async () => {
+    const { data: lines } = await supabase.from('ppe_check_lines').select('*');
+    if (lines) {
+      const compliant = lines.reduce((sum: number, l: any) => sum + ((l.quantity_checked || 0) - (l.quantity_non_compliant || 0)), 0);
+      const nonCompliant = lines.reduce((sum: number, l: any) => sum + (l.quantity_non_compliant || 0), 0);
+      setTotalCompliant(compliant);
+      setTotalNonCompliant(nonCompliant);
+    }
+
+    // Checks this month
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const { count } = await supabase.from('ppe_checks').select('*', { count: 'exact', head: true }).gte('date', firstOfMonth);
+    setChecksThisMonth(count || 0);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Delete this PPE check?")) return;
+    await supabase.from('ppe_checks').delete().eq('id', id);
+    setChecks(checks.filter(c => c.id !== id));
+  };
+
+  // Filter logic
+  const filteredChecks = checks.filter(check => {
+    const matchesSite = siteFilter === 'All' || check.site === siteFilter;
+    const matchesSearch = searchQuery === '' || 
+      check.check_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      check.checked_by.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSite && matchesSearch;
+  });
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1>PPE & Equipment Checks</h1>
+          <h1>PPE Checks</h1>
           <p className="page-subtitle">Track PPE inspections and compliance.</p>
         </div>
         <Link to="/ppe-checks/new" className="btn-primary"><Plus size={18} /> Log Check</Link>
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Check Type</th>
-              <th>Site</th>
-              <th>Date</th>
-              <th>Checked By</th>
-              <th style={{ width: '50px' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={6} className="table-message">Loading checks...</td></tr>
-            ) : checks.length === 0 ? (
-              <tr><td colSpan={6} className="table-message">No PPE checks logged yet. Click "Log Check" to add one.</td></tr>
-            ) : (
-              checks.map((check) => (
-                <tr key={check.id}>
-                  <td className="font-medium">PPE-{String(check.check_number).padStart(4, '0')}</td>
-                  <td>{check.check_type}</td>
-                  <td>{check.site}</td>
-                  <td>{check.date}</td>
-                  <td>{check.checked_by}</td>
-                  <td>
-                    <button className="btn-icon danger" onClick={() => handleDelete(check.id)}><Trash2 size={16} /></button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <PpeStats 
+        totalChecks={checks.length} 
+        compliant={totalCompliant} 
+        nonCompliant={totalNonCompliant} 
+        checksThisMonth={checksThisMonth} 
+      />
+
+      <PpeFilters 
+        siteFilter={siteFilter}
+        onSiteChange={setSiteFilter}
+        sitesList={sitesList}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
+
+      <PpeTable 
+        checks={filteredChecks}
+        loading={loading}
+        onDelete={handleDelete}
+      />
     </div>
   );
 }

@@ -1,9 +1,16 @@
 // src/pages/RiskAssessments.tsx
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, ChevronDown, ShieldAlert, ClipboardList } from 'lucide-react';
+import { Plus, ChevronDown, ShieldAlert, ClipboardList } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import '../styles/Inspections.css';
+
+import RiskStats from '../components/risk/RiskStats';
+
+import RiskFilters from '../components/risk/RiskFilters';
+
+import RiskTable from '../components/risk/RiskTable';
+
+import '../styles/Incidents.css';
 
 interface RiskAssessment {
   id: string;
@@ -19,9 +26,18 @@ interface RiskAssessment {
 export default function RiskAssessments() {
   const [assessments, setAssessments] = useState<RiskAssessment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  
+  const [typeFilter, setTypeFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [siteFilter, setSiteFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => { fetchAssessments(); }, []);
+  useEffect(() => {
+    fetchAssessments();
+    fetchSites();
+  }, []);
 
   const fetchAssessments = async () => {
     try {
@@ -36,14 +52,32 @@ export default function RiskAssessments() {
     }
   };
 
+  const fetchSites = async () => {
+    const { data } = await supabase.from('sites').select('id, name').eq('status', 'active');
+    if (data) setSitesList(data);
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this assessment? This will also delete all steps and hazards.")) return;
-    try {
-      const { error } = await supabase.from('risk_assessments').delete().eq('id', id);
-      if (error) throw error;
-      setAssessments(assessments.filter(a => a.id !== id));
-    } catch (error: any) { alert(error.message); }
+    await supabase.from('risk_assessments').delete().eq('id', id);
+    setAssessments(assessments.filter(a => a.id !== id));
   };
+
+  // Filter logic
+  const filteredAssessments = assessments.filter(item => {
+    const matchesType = typeFilter === 'All' || item.assessment_type === typeFilter;
+    const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
+    const matchesSite = siteFilter === 'All' || item.site === siteFilter;
+    const matchesSearch = searchQuery === '' || 
+      item.task_name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesType && matchesStatus && matchesSite && matchesSearch;
+  });
+
+  // Stats
+  const total = assessments.length;
+  const jsas = assessments.filter(a => a.assessment_type === 'JSA').length;
+  const rams = assessments.filter(a => a.assessment_type === 'RAMS').length;
+  const approved = assessments.filter(a => a.status === 'Approved').length;
 
   return (
     <div>
@@ -53,7 +87,6 @@ export default function RiskAssessments() {
           <p className="page-subtitle">Manage Risk Assessments (RAMS) and JSA / JHA.</p>
         </div>
         
-        {/* Dropdown Button */}
         <div style={{ position: 'relative' }}>
           <button className="btn-primary" onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
             <Plus size={18} /> New Assessment <ChevronDown size={16} />
@@ -72,52 +105,25 @@ export default function RiskAssessments() {
         </div>
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Type</th>
-              <th>Task Name</th>
-              <th>Site</th>
-              <th>Assessor</th>
-              <th>Date</th>
-              <th>Status</th>
-              <th style={{ width: '50px' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={8} className="table-message">Loading assessments...</td></tr>
-            ) : assessments.length === 0 ? (
-              <tr><td colSpan={8} className="table-message">No assessments yet.</td></tr>
-            ) : (
-              assessments.map((item) => (
-                <tr key={item.id} className="clickable-row" onClick={() => window.location.href = `/risk-assessments/${item.id}`}>
-                  <td className="font-medium">RA-{String(item.ra_number).padStart(4, '0')}</td>
-                  <td>
-                    <span className="badge" style={{ backgroundColor: '#e0e7ff', color: '#3730a3' }}>
-                      {item.assessment_type}
-                    </span>
-                  </td>
-                  <td>{item.task_name}</td>
-                  <td>{item.site}</td>
-                  <td>{item.assessor_name}</td>
-                  <td>{new Date(item.date_of_assessment).toLocaleDateString()}</td>
-                  <td>
-                    <span className={`badge ${item.status === 'Approved' ? 'severity-low' : item.status === 'Expired' ? 'severity-critical' : 'severity-medium'}`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <button className="btn-icon danger" onClick={() => handleDelete(item.id)}><Trash2 size={16} /></button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <RiskStats total={total} jsas={jsas} rams={rams} approved={approved} />
+
+      <RiskFilters 
+        typeFilter={typeFilter}
+        onTypeChange={setTypeFilter}
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        siteFilter={siteFilter}
+        onSiteChange={setSiteFilter}
+        sitesList={sitesList}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
+
+      <RiskTable 
+        assessments={filteredAssessments}
+        loading={loading}
+        onDelete={handleDelete}
+      />
     </div>
   );
 }

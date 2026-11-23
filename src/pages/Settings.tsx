@@ -31,6 +31,10 @@ const CATEGORIES = [
   { key: 'permit_type', label: 'Permit Types' },
   { key: 'audit_type', label: 'Audit Types' },
   { key: 'drill_type', label: 'Drill Types' },
+  { key: 'training_type', label: 'Training Types' },
+  { key: 'compliance_type', label: 'Compliance Types' },
+  { key: 'compliance_category', label: 'Compliance Categories' },
+  { key: 'document_category', label: 'Document Categories' },
 ];
 
 export default function Settings() {

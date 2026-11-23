@@ -1,9 +1,12 @@
 // src/pages/Training.tsx
 import { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import '../styles/Inspections.css';
+import TrainingStats from '../components/training/TrainingStats';
+import TrainingFilters from '../components/training/TrainingFilters';
+import TrainingTable from '../components/training/TrainingTable';
+import '../styles/Incidents.css';
 
 interface Certification {
   id: string;
@@ -18,8 +21,13 @@ interface Certification {
 export default function Training() {
   const [certs, setCerts] = useState<Certification[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => { fetchCerts(); }, []);
+  useEffect(() => {
+    fetchCerts();
+  }, []);
 
   const fetchCerts = async () => {
     try {
@@ -28,7 +36,7 @@ export default function Training() {
       if (error) throw error;
       setCerts(data || []);
     } catch (error: any) {
-      alert("Error: " + error.message);
+      alert("Error fetching certifications: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -36,77 +44,58 @@ export default function Training() {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Delete this certification?")) return;
-    try {
-      const { error } = await supabase.from('certifications').delete().eq('id', id);
-      if (error) throw error;
-      setCerts(certs.filter(c => c.id !== id));
-    } catch (error: any) {
-      alert("Error: " + error.message);
-    }
+    await supabase.from('certifications').delete().eq('id', id);
+    setCerts(certs.filter(c => c.id !== id));
   };
 
-  const getStatus = (expiryDate: string) => {
-    if (!expiryDate) return { label: 'No Expiry', color: 'severity-low' };
+  // Filter logic
+  const filteredCerts = certs.filter(cert => {
     const today = new Date();
-    const expiry = new Date(expiryDate);
-    const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return { label: 'Expired', color: 'severity-critical' };
-    if (diffDays <= 60) return { label: 'Expiring Soon', color: 'severity-high' };
-    return { label: 'Valid', color: 'severity-low' };
-  };
+    const expiry = cert.expiry_date ? new Date(cert.expiry_date) : null;
+    const diffDays = expiry ? Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+    let matchesStatus = true;
+    if (statusFilter === 'valid') matchesStatus = !expiry || diffDays! > 60;
+    else if (statusFilter === 'expiring') matchesStatus = expiry !== null && diffDays! > 0 && diffDays! <= 60;
+    else if (statusFilter === 'expired') matchesStatus = expiry !== null && diffDays! < 0;
+
+    const matchesSearch = searchQuery === '' || 
+      cert.person_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      cert.cert_type.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
+
+  // Stats
+  const total = certs.length;
+  const today = new Date();
+  const valid = certs.filter(c => !c.expiry_date || new Date(c.expiry_date) > new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000)).length;
+  const expiringSoon = certs.filter(c => c.expiry_date && new Date(c.expiry_date) > today && new Date(c.expiry_date) <= new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000)).length;
+  const expired = certs.filter(c => c.expiry_date && new Date(c.expiry_date) < today).length;
 
   return (
     <div>
       <div className="page-header">
-        <div><h1>Training & Certifications</h1><p className="page-subtitle">Click any row to update dates or upload new certificates.</p></div>
+        <div>
+          <h1>Training & Certifications</h1>
+          <p className="page-subtitle">Track worker competencies and expiry dates.</p>
+        </div>
         <Link to="/training/new" className="btn-primary"><Plus size={18} /> Add Certification</Link>
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Person Name</th>
-              <th>Company</th>
-              <th>Certification Type</th>
-              <th>Expiry Date</th>
-              <th>Status</th>
-              <th>Document</th>
-              <th style={{ width: '50px' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={8} className="table-message">Loading certifications...</td></tr>
-            ) : certs.length === 0 ? (
-              <tr><td colSpan={8} className="table-message">No certifications logged yet.</td></tr>
-            ) : (
-              certs.map((cert) => {
-                const status = getStatus(cert.expiry_date);
-                return (
-                  <tr key={cert.id} className="clickable-row" onClick={() => window.location.href = `/training/${cert.id}`}>
-                    <td className="font-medium">CERT-{String(cert.cert_number).padStart(4, '0')}</td>
-                    <td>{cert.person_name}</td>
-                    <td>{cert.company || '-'}</td>
-                    <td>{cert.cert_type}</td>
-                    <td>{cert.expiry_date ? new Date(cert.expiry_date).toLocaleDateString() : 'N/A'}</td>
-                    <td><span className={`badge ${status.color}`}>{status.label}</span></td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      {cert.file_url ? (
-                        <a href={cert.file_url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>View File</a>
-                      ) : <span style={{ color: 'var(--text-muted)' }}>None</span>}
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <button className="btn-icon danger" onClick={() => handleDelete(cert.id)}><Trash2 size={16} /></button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      <TrainingStats total={total} valid={valid} expiringSoon={expiringSoon} expired={expired} />
+
+      <TrainingFilters 
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
+
+      <TrainingTable 
+        certs={filteredCerts}
+        loading={loading}
+        onDelete={handleDelete}
+      />
     </div>
   );
 }

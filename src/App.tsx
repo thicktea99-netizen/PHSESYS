@@ -11,7 +11,7 @@ import LogInspection from './pages/LogInspection';
 import Inspections from './pages/Inspections';
 import Capa from './pages/Capa';
 import LogCapa from './pages/LogCapa';
-import CapaDetail from './pages/CapaDetail';
+import EditCapa from './pages/EditCapa';
 import Hazards from './pages/Hazards';
 import LogHazard from './pages/LogHazard';
 import ToolboxTalks from './pages/ToolboxTalks';
@@ -43,6 +43,17 @@ import EmergencyContacts from './pages/EmergencyContacts';
 import LogEmergencyContact from './pages/LogEmergencyContact';
 
 import LogInvestigation from './pages/LogInvestigation';
+
+import TrainingSessions from './pages/TrainingSessions';
+
+import LogTrainingSession from './pages/LogTrainingSession';
+
+import Inductions from './pages/Inductions';
+import LogInduction from './pages/LogInduction';
+
+import Projects from './pages/Projects';
+
+
 
 import Reports from './pages/Reports';
 
@@ -79,7 +90,7 @@ function App() {
               <Route path="/capa/new" element={<LogCapa />} 
               />
 
-              <Route path="/capa/:id" element={<CapaDetail />} 
+              <Route path="/capa/:id" element={<EditCapa />} 
               />
 
               {/* Hazards */}
@@ -121,8 +132,14 @@ function App() {
               <Route path="/people" element={<People />} />
 
               {/* Equipment */}
-              <Route path="/equipment" element={<Equipment />} />
-              <Route path="/equipment/new" element={<LogEquipment />} />
+              <Route path="/equipment" element={<Equipment />} 
+              />
+
+              <Route path="/equipment/new" element={<LogEquipment />} 
+              />
+
+              <Route path="/equipment/:id" element={<LogEquipment />} 
+              />
 
               {/* Risk Assessments */}
               <Route path="/risk-assessments" element={<RiskAssessments />} />
@@ -154,6 +171,26 @@ function App() {
 
               <Route path="/emergency-contacts/:id" element={<LogEmergencyContact />}
               />
+
+              <Route path="/training-sessions" element={<TrainingSessions />} 
+              />
+
+              <Route path="/training-sessions/new" element={<LogTrainingSession />} 
+              />
+
+              <Route path="/training-sessions/:id" element={<LogTrainingSession />} 
+              />
+
+              <Route path="/inductions" element={<Inductions />} 
+              />
+
+              <Route path="/inductions/new" element={<LogInduction />} 
+              />
+              
+              <Route path="/inductions/:id" element={<LogInduction />} 
+              />
+
+              <Route path="/projects" element={<Projects />} />
 
 
 

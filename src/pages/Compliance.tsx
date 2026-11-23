@@ -1,9 +1,12 @@
 // src/pages/Compliance.tsx
 import { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import '../styles/Inspections.css';
+import ComplianceStats from '../components/compliance/ComplianceStats';
+import ComplianceFilters from '../components/compliance/ComplianceFilters';
+import ComplianceTable from '../components/compliance/ComplianceTable';
+import '../styles/Incidents.css';
 
 interface Compliance {
   id: string;
@@ -13,13 +16,22 @@ interface Compliance {
   expiry_date: string;
   renewal_lead_days: number;
   file_url: string;
+  site: string;
 }
 
 export default function Compliance() {
   const [records, setRecords] = useState<Compliance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
+  
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [siteFilter, setSiteFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => { fetchRecords(); }, []);
+  useEffect(() => {
+    fetchRecords();
+    fetchSites();
+  }, []);
 
   const fetchRecords = async () => {
     try {
@@ -34,77 +46,69 @@ export default function Compliance() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this record?")) return;
-    try {
-      const { error } = await supabase.from('compliance_register').delete().eq('id', id);
-      if (error) throw error;
-      setRecords(records.filter(r => r.id !== id));
-    } catch (error: any) {
-      alert("Error: " + error.message);
-    }
+  const fetchSites = async () => {
+    const { data } = await supabase.from('sites').select('id, name').eq('status', 'active');
+    if (data) setSitesList(data);
   };
 
-  const getStatus = (expiryDate: string, leadDays: number) => {
-    if (!expiryDate) return { label: 'No Expiry', color: 'status-active' };
-    const today = new Date();
-    const expiry = new Date(expiryDate);
-    const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return { label: 'Expired', color: 'status-expired' };
-    if (diffDays <= leadDays) return { label: 'Expiring Soon', color: 'status-suspended' };
-    return { label: 'Valid', color: 'status-active' };
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Delete this compliance record?")) return;
+    await supabase.from('compliance_register').delete().eq('id', id);
+    setRecords(records.filter(r => r.id !== id));
   };
+
+  // Filter logic
+  const filteredRecords = records.filter(record => {
+    const today = new Date();
+    const expiry = record.expiry_date ? new Date(record.expiry_date) : null;
+    const diffDays = expiry ? Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+    let matchesStatus = true;
+    if (statusFilter === 'valid') matchesStatus = !expiry || diffDays! > (record.renewal_lead_days || 60);
+    else if (statusFilter === 'expiring') matchesStatus = expiry !== null && diffDays! > 0 && diffDays! <= (record.renewal_lead_days || 60);
+    else if (statusFilter === 'expired') matchesStatus = expiry !== null && diffDays! < 0;
+
+    const matchesSite = siteFilter === 'All' || record.site === siteFilter;
+    const matchesSearch = searchQuery === '' || 
+      record.obligation_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (record.authority && record.authority.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesStatus && matchesSite && matchesSearch;
+  });
+
+  // Stats
+  const total = records.length;
+  const today = new Date();
+  const valid = records.filter(r => !r.expiry_date || new Date(r.expiry_date) > new Date(today.getTime() + (r.renewal_lead_days || 60) * 24 * 60 * 60 * 1000)).length;
+  const expiringSoon = records.filter(r => r.expiry_date && new Date(r.expiry_date) > today && new Date(r.expiry_date) <= new Date(today.getTime() + (r.renewal_lead_days || 60) * 24 * 60 * 60 * 1000)).length;
+  const expired = records.filter(r => r.expiry_date && new Date(r.expiry_date) < today).length;
 
   return (
     <div>
       <div className="page-header">
-        <div><h1>Legal & Compliance Register</h1><p className="page-subtitle">Click any row to update dates or upload new documents.</p></div>
+        <div>
+          <h1>Legal & Compliance Register</h1>
+          <p className="page-subtitle">Track certificates, licenses, and permits.</p>
+        </div>
         <Link to="/compliance/new" className="btn-primary"><Plus size={18} /> Add Record</Link>
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Obligation Name</th>
-              <th>Authority</th>
-              <th>Expiry Date</th>
-              <th>Status</th>
-              <th>Document</th>
-              <th style={{ width: '50px' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={7} className="table-message">Loading records...</td></tr>
-            ) : records.length === 0 ? (
-              <tr><td colSpan={7} className="table-message">No compliance records yet.</td></tr>
-            ) : (
-              records.map((record) => {
-                const status = getStatus(record.expiry_date, record.renewal_lead_days);
-                return (
-                  <tr key={record.id} className="clickable-row" onClick={() => window.location.href = `/compliance/${record.id}`}>
-                    <td className="font-medium">CMP-{String(record.compliance_number).padStart(4, '0')}</td>
-                    <td>{record.obligation_name}</td>
-                    <td>{record.authority || '-'}</td>
-                    <td>{record.expiry_date ? new Date(record.expiry_date).toLocaleDateString() : 'N/A'}</td>
-                    <td><span className={`badge ${status.color.replace('status-', 'severity-')}`}>{status.label}</span></td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      {record.file_url ? (
-                        <a href={record.file_url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>View File</a>
-                      ) : <span style={{ color: 'var(--text-muted)' }}>None</span>}
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <button className="btn-icon danger" onClick={() => handleDelete(record.id)}><Trash2 size={16} /></button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      <ComplianceStats total={total} valid={valid} expiringSoon={expiringSoon} expired={expired} />
+
+      <ComplianceFilters 
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        siteFilter={siteFilter}
+        onSiteChange={setSiteFilter}
+        sitesList={sitesList}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
+
+      <ComplianceTable 
+        records={filteredRecords}
+        loading={loading}
+        onDelete={handleDelete}
+      />
     </div>
   );
 }

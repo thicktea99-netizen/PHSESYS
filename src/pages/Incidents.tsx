@@ -1,10 +1,11 @@
-
-
 // src/pages/Incidents.tsx
 import { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import IncidentStats from '../components/incidents/IncidentStats';
+import IncidentFilters from '../components/incidents/IncidentFilters';
+import IncidentTable from '../components/incidents/IncidentTable';
 import '../styles/Incidents.css';
 
 interface Incident {
@@ -20,19 +21,22 @@ interface Incident {
 export default function Incidents() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
+  
+  // Filters
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [siteFilter, setSiteFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchIncidents();
+    fetchSites();
   }, []);
 
   const fetchIncidents = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('incidents')
-        .select('*')
-        .order('created_at', { ascending: false });
-
+      const { data, error } = await supabase.from('incidents').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       setIncidents(data || []);
     } catch (error: any) {
@@ -42,117 +46,66 @@ export default function Incidents() {
     }
   };
 
-  const updateStatusInline = async (id: string, newStatus: string) => {
-    setIncidents(incidents.map(i => i.id === id ? { ...i, status: newStatus } : i));
-    
-    const { error } = await supabase
-      .from('incidents')
-      .update({ status: newStatus })
-      .eq('id', id);
+  const fetchSites = async () => {
+    const { data } = await supabase.from('sites').select('id, name').eq('status', 'active');
+    if (data) setSitesList(data);
+  };
 
-    if (error) {
-      alert("Failed to update status: " + error.message);
-      fetchIncidents();
-    }
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    setIncidents(incidents.map(i => i.id === id ? { ...i, status: newStatus } : i));
+    await supabase.from('incidents').update({ status: newStatus }).eq('id', id);
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = window.confirm("Are you sure you want to delete this incident? This action cannot be undone.");
-    if (!confirmDelete) return;
-
-    try {
-      const { error } = await supabase
-        .from('incidents')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      // Remove it from the UI instantly
-      setIncidents(incidents.filter(i => i.id !== id));
-    } catch (error: any) {
-      alert("Error deleting incident: " + error.message);
-    }
+    if (!window.confirm("Delete this incident?")) return;
+    await supabase.from('incidents').delete().eq('id', id);
+    setIncidents(incidents.filter(i => i.id !== id));
   };
+
+  // Filter logic
+  const filteredIncidents = incidents.filter(inc => {
+    const matchesStatus = statusFilter === 'All' || inc.status === statusFilter;
+    const matchesSite = siteFilter === 'All' || inc.area === siteFilter;
+    const matchesSearch = searchQuery === '' || 
+      inc.incident_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inc.area.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesStatus && matchesSite && matchesSearch;
+  });
+
+  // Stats
+  const total = incidents.length;
+  const open = incidents.filter(i => i.status !== 'closed').length;
+  const closed = incidents.filter(i => i.status === 'closed').length;
+  const ltis = incidents.filter(i => i.incident_type === 'lti').length;
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1>Incident Register</h1>
+          <h1>Incidents</h1>
           <p className="page-subtitle">Track, investigate, and close all site incidents.</p>
         </div>
-        <Link to="/incidents/new" className="btn-primary">
-          <Plus size={18} />
-          Log Incident
-        </Link>
+        <Link to="/incidents/new" className="btn-primary"><Plus size={18} /> Log Incident</Link>
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Incident ID</th>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Severity</th>
-              <th>Area / Location</th>
-              <th>Status</th>
-              <th style={{ width: '50px' }}></th> {/* Empty header for trash icon */}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={7} className="table-message">Loading incidents...</td>
-              </tr>
-            ) : incidents.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="table-message">No incidents logged yet. Click "Log Incident" to add one.</td>
-              </tr>
-            ) : (
-              incidents.map((incident) => (
-                <tr 
-                  key={incident.id} 
-                  className="clickable-row" 
-                  onClick={() => window.location.href = `/incidents/${incident.id}`}
-                >
-                  <td className="font-medium">INC-{String(incident.incident_number).padStart(4, '0')}</td>
-                  <td>{incident.date_of_occurrence}</td>
-                  <td className="text-capitalize">{incident.incident_type.replace('-', ' ')}</td>
-                  <td>
-                    <span className={`badge severity-${incident.severity.toLowerCase()}`}>
-                      {incident.severity}
-                    </span>
-                  </td>
-                  <td>{incident.area}</td>
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <select 
-                      value={incident.status || 'reported'} 
-                      onChange={(e) => updateStatusInline(incident.id, e.target.value)}
-                      className={`table-select status-${(incident.status || 'reported').replace(' ', '-')}`}
-                    >
-                      <option value="reported">Reported</option>
-                      <option value="investigating">Investigating</option>
-                      <option value="actions pending">Actions Pending</option>
-                      <option value="closed">Closed</option>
-                    </select>
-                  </td>
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <button 
-                      className="btn-icon danger" 
-                      onClick={() => handleDelete(incident.id)}
-                      title="Delete Incident"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <IncidentStats total={total} open={open} closed={closed} ltis={ltis} />
+
+      <IncidentFilters 
+        statusFilter={statusFilter}
+        onStatusChange={setStatusFilter}
+        siteFilter={siteFilter}
+        onSiteChange={setSiteFilter}
+        sitesList={sitesList}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
+
+      <IncidentTable 
+        incidents={filteredIncidents}
+        loading={loading}
+        onStatusChange={handleStatusChange}
+        onDelete={handleDelete}
+      />
     </div>
   );
 }
