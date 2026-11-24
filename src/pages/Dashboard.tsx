@@ -218,9 +218,11 @@ export default function Dashboard() {
       <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h1>Dashboard</h1>
         <div style={{ display: 'flex', gap: '12px' }}>
+
           <select className="form-input" value={selectedSite} onChange={(e) => {
             setSelectedSite(e.target.value);
             localStorage.setItem('selectedSite', e.target.value);
+            window.dispatchEvent(new Event('siteChanged'));
           }} style={{ width: '200px' }}>
             <option value="All">All Sites</option>
             {sitesList.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}

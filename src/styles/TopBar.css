@@ -1,6 +1,6 @@
 /* src/styles/TopBar.css */
 
-.topbar {
+/* .topbar {
   height: 64px;
   background-color: #ffffff;
   border-bottom: 1px solid var(--border);
@@ -8,35 +8,125 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
+} */
+
+/* .topbar {
+  /* Higher = more white / less image. Lower = more image. */
+  /* --topbar-overlay: rgba(255, 255, 255, 0.15); */
+  /* --overlay-left: rgba(255, 255, 255, 0.15);
+  --overlay-mid: rgba(255, 255, 255, 0.2);
+  --overlay-right: rgba(255, 255, 255, 0.02); */
+/*
+  height: 100px;
+  background-color: #ffffff; 
+  background-image:
+    linear-gradient(90deg, var(--overlay-left) 0%, var(--overlay-mid) 50%, var(--overlay-rigth) 100%),
+    url('/images/header_bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  column-gap: 16px;
+  align-items: center;
+ 
+  padding: 0 24px;
+} */
+
+.topbar {
+  height: 100px;
+  background-color: #94a3b8;   /* temporarily grey-blue instead of white, to help diagnose */
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0.25) 100%),
+    url('/images/header_bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  column-gap: 16px;
+  align-items: center;
+  padding: 0 24px;
+}
+
+
+.topbar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0; /* lets long project names shorten instead of pushing the bell */
+}
+
+
+.topbar-left,
+.topbar-center {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.5);   
+ 
+  border-radius: 12px; 
+}
+
+.topbar-left {
+  justify-self: start;
+  max-width: 100%;
+}
+
+.topbar-center {
+  align-items: center;
+  text-align: center;
 }
 
 .topbar-left h2 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-main);
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
+.topbar-greeting {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.topbar-meta {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+
 
 .topbar-right {
   display: flex;
   align-items: center;
+  justify-self: end;   /* ← add this line */
   gap: 16px;
 }
 
+
 .user-profile {
-  font-weight: 500;
-  color: var(--text-muted);
+  font-weight: 600;
+  color: #111827;
 }
 
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
+
 
 .emergency-bell {
   position: relative;
-  background: none;
-  border: none;
+  background: #fff;
+  border: 1px solid var(--danger);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
   border-radius: 50%;
   color: var(--danger);
   padding: 8px;
@@ -57,23 +147,8 @@
   transform: scale(1.1)
 }
 
- /* What we are adding */
- /* .emergency-bell:hover {
-  color: #b91c1c;
-  animation: none;  Stop pulsing on hover for a solid hover state 
-} */
+ 
 
-/* .emergency-dot {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 10px;
-  height: 10px;
-  background-color: var(--danger);
-  border-radius: 50%;
-  border: 2px solid #ffffff;
-  animation: pulse 1.5s infinite;
-} */
 
 /* What we are adding */
 .emergency-dot {
@@ -92,31 +167,7 @@
   position: relative; /* Ensure the tooltip is positioned relative to the button */
 }
 
-/* .tooltip-text {
-  visibility: hidden;
-  opacity: 0.3;
-  width: auto;
-  background-color: var(--danger);
-  color: #ffffff;
-  text-align: center;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  white-space: nowrap;
-  
- 
-  position: absolute;
-  z-index: 100;
-  top: 120%; 
-  left: 50%;
-  transform: translateX(-50%);
-  
- 
-  transition: opacity 0.2s ease, visibility 0.2s ease;
-}
-*/
-/* what we are adding */
+
 /* Custom Tooltip */
 .tooltip-text {
   visibility: hidden;
@@ -199,5 +250,12 @@
     transform: scale(0.95);
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
   }
+}
+
+
+/* Responsiveness */
+@media (max-width: 1000px) {
+  .topbar { grid-template-columns: minmax(0, 1fr) auto; }
+  .topbar-center { display: none; }
 }
 
