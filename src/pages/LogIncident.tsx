@@ -1,7 +1,7 @@
 // src/pages/LogIncident.tsx
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Plus, Trash2, Paperclip } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import '../styles/LogIncident.css';
 
@@ -13,7 +13,10 @@ interface Witness {
 }
 
 export default function LogIncident() {
-  // --- CORE STATE ---
+  const [searchParams] = useSearchParams();
+  const prefillEquipment = searchParams.get('equipment');
+  const prefillSite = searchParams.get('site');
+
   const [incidentType, setIncidentType] = useState('');
   const [severity, setSeverity] = useState('low');
   const [reporterName, setReporterName] = useState('');
@@ -22,13 +25,12 @@ export default function LogIncident() {
   const [time, setTime] = useState('');
   const [description, setDescription] = useState('');
   
-  // --- LOCATION & PEOPLE STATE ---
-  const [site, setSite] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [site, setSite] = useState(prefillSite || '');
   const [area, setArea] = useState('');
   const [involvedItem, setInvolvedItem] = useState('');
   const [activity, setActivity] = useState('');
   
-  // --- VICTIM STATE (Free Text) ---
   const [victimName, setVictimName] = useState('');
   const [victimRole, setVictimRole] = useState('');
   const [victimContact, setVictimContact] = useState('');
@@ -42,25 +44,29 @@ export default function LogIncident() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [vehicleAffiliation, setVehicleAffiliation] = useState('company');
 
-  const [incidentTypes, setIncidentTypes] = useState<{ id: string, option_value: string }[]>([]);
-
-  // --- DYNAMIC DATA STATE ---
-  const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
+  const [sitesList, setSitesList] = useState<{ id: string, name: string, project_id: string }[]>([]);
+  const [projectsList, setProjectsList] = useState<{ id: string, project_name: string }[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
-      // Fetch sites
-      const { data: sitesData } = await supabase.from('sites').select('id, name').eq('status', 'active');
+      const { data: sitesData } = await supabase.from('sites').select('id, name, project_id').eq('status', 'active');
       if (sitesData) setSitesList(sitesData);
 
-      // Fetch incident types from dropdown options
-      const { data: typeData } = await supabase.from('dropdown_options').select('id, option_value').eq('category', 'incident_type').order('option_value');
-      if (typeData) setIncidentTypes(typeData);
+      const { data: projectsData } = await supabase.from('projects').select('id, project_name').eq('status', 'active');
+      if (projectsData) setProjectsList(projectsData);
     };
     fetchData();
   }, []);
 
- 
+  // Auto-fill project when site is selected
+  useEffect(() => {
+    if (site) {
+      const selectedSite = sitesList.find(s => s.name === site);
+      if (selectedSite && selectedSite.project_id) {
+        setProjectId(selectedSite.project_id);
+      }
+    }
+  }, [site, sitesList]);
 
   const addWitness = () => {
     setWitnesses([...witnesses, { id: Date.now(), name: '', contact: '', statement: '' }]);
@@ -88,7 +94,6 @@ export default function LogIncident() {
 
   const handleSave = async () => {
     if (!reporterName || !incidentType || !date || !time || !description) {
-
       alert("Please fill in required fields: Reporter, Type, Date, Time, and Description.");
       return;
     }
@@ -116,6 +121,7 @@ export default function LogIncident() {
           reporter_name: reporterName,
           reporter_role: reporterRole,
           description: description,
+          project_id: projectId || null,
           site: site,
           area: area,
           involved_item: involvedItem,
@@ -132,13 +138,6 @@ export default function LogIncident() {
         .single();
 
       if (incidentError) throw incidentError;
-
-      // Log to audit trail
-      await supabase.from('audit_logs').insert([{
-        module: 'Incidents',
-        action: 'Logged Incident',
-        reference: `INC-${String(incidentData.incident_number).padStart(4, '0')}`
-      }]);
 
       if (witnesses.length > 0) {
         const witnessData = witnesses.map(w => ({
@@ -158,6 +157,12 @@ export default function LogIncident() {
         const { error: uploadError } = await supabase.storage.from('incident-attachments').upload(fileName, selectedFile);
         if (uploadError) throw uploadError;
       }
+
+      await supabase.from('audit_logs').insert([{
+        module: 'Incidents',
+        action: 'Logged Incident',
+        reference: `INC-${String(incidentData.incident_number).padStart(4, '0')}`
+      }]);
 
       alert("Incident saved successfully!");
       window.location.href = '/incidents'; 
@@ -183,16 +188,17 @@ export default function LogIncident() {
           <div className="form-group"><label>Reporter Role / Company</label><input type="text" className="form-input" placeholder="e.g., Site Supervisor - ABC Ltd" value={reporterRole} onChange={(e) => setReporterRole(e.target.value)} /></div>
           <div className="form-group">
             <label>Incident Type *</label>
-
             <select className="form-input" value={incidentType} onChange={handleTypeChange}>
               <option value="">Select Type...</option>
-              {incidentTypes.map((type) => (
-                <option key={type.id} value={type.option_value.toLowerCase().replace(/\s+/g, '-')}>
-                  {type.option_value}
-                </option>
-              ))}
+              <option value="near-miss">Near-Miss</option>
+              <option value="first-aid">First Aid Case</option>
+              <option value="lti">Lost Time Injury (LTI)</option>
+              <option value="fatality">Fatality</option>
+              <option value="vehicle">Vehicle Incident</option>
+              <option value="property">Property / Equipment Damage</option>
+              <option value="environmental">Environmental Incident</option>
+              <option value="occupational-illness">Occupational Illness</option>
             </select>
-
           </div>
           <div className="form-group">
             <label>Severity *</label>
@@ -213,10 +219,17 @@ export default function LogIncident() {
         <h3 className="form-section-title mt-32">2. Location & People</h3>
         <div className="form-grid">
           <div className="form-group">
+            <label>Project</label>
+            <select className="form-input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+              <option value="">Select Project...</option>
+              {projectsList.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
             <label>Site *</label>
             <select className="form-input" value={site} onChange={(e) => setSite(e.target.value)}>
               <option value="">Select Site...</option>
-              {sitesList.map((s) => (<option key={s.id} value={s.name}>{s.name}</option>))}
+              {sitesList.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
             </select>
           </div>
           <div className="form-group"><label>Area / Location Detail *</label><input type="text" className="form-input" placeholder="e.g., Level 3 - Column B4" value={area} onChange={(e) => setArea(e.target.value)} /></div>
@@ -237,7 +250,6 @@ export default function LogIncident() {
           <div className="form-group"><label>Activity / Task at Time of Incident</label><input type="text" className="form-input" placeholder="e.g., Welding rebar couplers" value={activity} onChange={(e) => setActivity(e.target.value)} /></div>
         </div>
 
-        {/* VICTIM DETAILS - FREE TEXT */}
         <div className="findings-container mt-16">
           <div className="findings-header">
             <div>
@@ -246,26 +258,14 @@ export default function LogIncident() {
             </div>
           </div>
           <div className="form-grid">
-            <div className="form-group">
-              <label>Victim Name</label>
-              <input type="text" className="form-input" placeholder="Full name" value={victimName} onChange={(e) => setVictimName(e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label>Victim Role / Company</label>
-              <input type="text" className="form-input" placeholder="e.g., Visitor, Client, Worker" value={victimRole} onChange={(e) => setVictimRole(e.target.value)} />
-            </div>
+            <div className="form-group"><label>Victim Name</label><input type="text" className="form-input" placeholder="Full name" value={victimName} onChange={(e) => setVictimName(e.target.value)} /></div>
+            <div className="form-group"><label>Victim Role / Company</label><input type="text" className="form-input" placeholder="e.g., Visitor, Client, Worker" value={victimRole} onChange={(e) => setVictimRole(e.target.value)} /></div>
             <div className="form-group">
               <label>Victim Contact</label>
-              <input 
-                type="tel" 
-                className="form-input" 
-                placeholder="10-digit Contact" 
-                value={victimContact} 
-                onChange={(e) => {
-                  const numericValue = e.target.value.replace(/\D/g, '');
-                  if (numericValue.length <= 10) setVictimContact(numericValue);
-                }} 
-              />
+              <input type="tel" className="form-input" placeholder="10-digit Contact" value={victimContact} onChange={(e) => {
+                const numericValue = e.target.value.replace(/\D/g, '');
+                if (numericValue.length <= 10) setVictimContact(numericValue);
+              }} />
             </div>
           </div>
         </div>

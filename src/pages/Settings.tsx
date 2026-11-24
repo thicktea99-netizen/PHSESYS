@@ -5,11 +5,17 @@ import { supabase } from '../lib/supabase';
 import '../styles/Forms.css';
 import '../styles/Settings.css';
 
+import SiteStats from '../components/sites/SiteStats';
+import SiteFilters from '../components/sites/SiteFilters';
+import SiteTable from '../components/sites/SiteTable';
+import SiteForm from '../components/sites/SiteForm';
+
 interface Site { 
   id: string; 
   name: string; 
   location: string; 
   status: string;
+  project_id: string;
   assembly_point: string;
   hospital_name: string;
   hospital_phone: string;
@@ -48,7 +54,14 @@ export default function Settings() {
   const [newSiteHospitalName, setNewSiteHospitalName] = useState('');
   const [newSiteHospitalPhone, setNewSiteHospitalPhone] = useState('');
   const [newSiteFirstAider, setNewSiteFirstAider] = useState(false);
+  // Sites
   const [loadingSites, setLoadingSites] = useState(true);
+
+  // Projects
+  const [projectsList, setProjectsList] = useState<{ id: string, project_name: string }[]>([]);
+  const [newSiteProjectId, setNewSiteProjectId] = useState('');
+  const [projectFilter, setProjectFilter] = useState('All');
+  const [siteSearchQuery, setSiteSearchQuery] = useState('');
 
   // --- DROPDOWN STATE ---
   const [activeCategory, setActiveCategory] = useState('incident_type');
@@ -88,6 +101,11 @@ export default function Settings() {
     if (activeTab === 'dashboard') { fetchAlerts(); fetchActivityModules(); }
     if (activeTab === 'company') fetchCompanyProfile();
     if (activeTab === 'targets') fetchTargets();
+
+    if (activeTab === 'sites') {
+      fetchSites();
+      fetchProjects();
+    }
   }, [activeTab, activeCategory]);
 
   // --- SITE HANDLERS ---
@@ -98,14 +116,36 @@ export default function Settings() {
     setLoadingSites(false);
   };
 
+
+  const filteredSites = sites.filter(site => {
+    const matchesProject = projectFilter === 'All' || site.project_id === projectFilter;
+    const matchesSearch = siteSearchQuery === '' || site.name.toLowerCase().includes(siteSearchQuery.toLowerCase());
+    return matchesProject && matchesSearch;
+  });
+
+
+
+
+
+  const fetchProjects = async () => {
+    const { data } = await supabase.from('projects').select('id, project_name').eq('status', 'active');
+    if (data) setProjectsList(data);
+  };
+
+
+
   const addSite = async () => {
     if (!newSiteName) return;
     await supabase.from('sites').insert([{ 
-      name: newSiteName, location: newSiteLocation,
-      assembly_point: newSiteAssemblyPoint, hospital_name: newSiteHospitalName,
-      hospital_phone: newSiteHospitalPhone, first_aider_present: newSiteFirstAider
+      name: newSiteName, 
+      location: newSiteLocation,
+      project_id: newSiteProjectId || null,
+      assembly_point: newSiteAssemblyPoint,
+      hospital_name: newSiteHospitalName,
+      hospital_phone: newSiteHospitalPhone,
+      first_aider_present: newSiteFirstAider
     }]);
-    setNewSiteName(''); setNewSiteLocation(''); setNewSiteAssemblyPoint(''); 
+    setNewSiteName(''); setNewSiteLocation(''); setNewSiteProjectId(''); setNewSiteAssemblyPoint(''); 
     setNewSiteHospitalName(''); setNewSiteHospitalPhone(''); setNewSiteFirstAider(false);
     fetchSites();
   };
@@ -285,56 +325,46 @@ export default function Settings() {
       </div>
 
       {/* SITES TAB */}
+
       {activeTab === 'sites' && (
         <div>
-          <div className="form-card mb-24">
-            <h3 className="form-section-title">Add New Site</h3>
-            <div className="form-grid">
-              <div className="form-group"><label>Site Name *</label><input type="text" className="form-input" value={newSiteName} onChange={(e) => setNewSiteName(e.target.value)} /></div>
-              <div className="form-group"><label>Location</label><input type="text" className="form-input" value={newSiteLocation} onChange={(e) => setNewSiteLocation(e.target.value)} /></div>
-              <div className="form-group"><label>Assembly Point</label><input type="text" className="form-input" placeholder="e.g., Main Gate" value={newSiteAssemblyPoint} onChange={(e) => setNewSiteAssemblyPoint(e.target.value)} /></div>
-              <div className="form-group"><label>Nearest Hospital</label><input type="text" className="form-input" placeholder="e.g., Ridge Hospital" value={newSiteHospitalName} onChange={(e) => setNewSiteHospitalName(e.target.value)} /></div>
-              <div className="form-group"><label>Hospital Phone</label><input type="tel" className="form-input" placeholder="e.g., 0302123456" value={newSiteHospitalPhone} onChange={(e) => setNewSiteHospitalPhone(e.target.value.replace(/\D/g, ''))} /></div>
-              <div className="form-group" style={{ justifyContent: 'center' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '24px' }}>
-                  <input type="checkbox" checked={newSiteFirstAider} onChange={(e) => setNewSiteFirstAider(e.target.checked)} /> First Aider on Site
-                </label>
-              </div>
-              <div className="form-group" style={{ justifyContent: 'flex-end' }}
-              >
-                <button 
-                  className="btn-primary" 
-                  onClick={addSite}
-                  style={{ width: 'auto', alignSelf: 'flex-start' }}
-                >
-                  <Plus size={18} />
-                   Add Site
-                </button>
-              </div>
+          <SiteStats 
+            total={sites.length} 
+            active={sites.filter(s => s.status === 'active').length} 
+            closed={sites.filter(s => s.status === 'closed').length} 
+            projects={new Set(sites.map(s => s.project_id).filter(Boolean)).size}
+          />
 
-            </div>
-          </div>
-          <div className="table-container">
-            <table className="data-table">
-              <thead><tr><th>Site Name</th><th>Location</th><th>Assembly Point</th><th>Hospital</th><th>First Aider</th><th style={{ width: '50px' }}></th></tr></thead>
-              <tbody>
-                {loadingSites ? <tr><td colSpan={6} className="table-message">Loading...</td></tr> :
-                  sites.map(s => (
-                    <tr key={s.id}>
-                      <td className="font-medium">{s.name}</td>
-                      <td>{s.location || '-'}</td>
-                      <td>{s.assembly_point || '-'}</td>
-                      <td>{s.hospital_name || '-'}</td>
-                      <td>{s.first_aider_present ? 'Yes' : 'No'}</td>
-                      <td><button className="btn-icon danger" onClick={() => deleteSite(s.id)}><Trash2 size={16} /></button></td>
-                    </tr>
-                  ))
-                }
-              </tbody>
-            </table>
-          </div>
+          <SiteFilters 
+            projectFilter={projectFilter}
+            onProjectChange={setProjectFilter}
+            projectsList={projectsList}
+            searchQuery={siteSearchQuery}
+            onSearchChange={setSiteSearchQuery}
+          />
+
+          <SiteForm 
+            newSiteName={newSiteName} setNewSiteName={setNewSiteName}
+            newSiteLocation={newSiteLocation} setNewSiteLocation={setNewSiteLocation}
+            newSiteProjectId={newSiteProjectId} setNewSiteProjectId={setNewSiteProjectId}
+            newSiteAssemblyPoint={newSiteAssemblyPoint} setNewSiteAssemblyPoint={setNewSiteAssemblyPoint}
+            newSiteHospitalName={newSiteHospitalName} setNewSiteHospitalName={setNewSiteHospitalName}
+            newSiteHospitalPhone={newSiteHospitalPhone} setNewSiteHospitalPhone={setNewSiteHospitalPhone}
+            newSiteFirstAider={newSiteFirstAider} setNewSiteFirstAider={setNewSiteFirstAider}
+            projectsList={projectsList}
+            onAdd={addSite}
+          />
+
+          <SiteTable 
+            sites={filteredSites} 
+            loading={loadingSites} 
+            onDelete={deleteSite} 
+          />
         </div>
       )}
+      
+
+
 
       {/* DROPDOWN MANAGER TAB */}
       {activeTab === 'dropdowns' && (
