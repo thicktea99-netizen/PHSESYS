@@ -156,10 +156,11 @@ export default function Sidebar() {
               </Link>
 
 
-              <Link to="/training" className={`nav-item ${location.pathname.startsWith('/training') ? 'active' : ''}`}>
-                <GraduationCap size={18} />
-                <span>Certifications</span>
+              <Link to="/training" className={`nav-item ${location.pathname === '/training' || location.pathname.startsWith('/training/') ? 'active' : ''}`}>
+                  <GraduationCap size={18} />
+                  <span>Certifications</span>
               </Link>
+
             </div>
           )}
         </div>

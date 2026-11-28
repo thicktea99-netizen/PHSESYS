@@ -1,6 +1,6 @@
 // src/pages/IncidentDetail.tsx
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Paperclip } from 'lucide-react';
+import { ArrowLeft, Plus } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import '../styles/IncidentDetail.css';
@@ -11,6 +11,8 @@ export default function IncidentDetail() {
   
   const [incident, setIncident] = useState<any>(null);
   const [witnesses, setWitnesses] = useState<any[]>([]);
+  const [victims, setVictims] = useState<any[]>([]);
+  const [photos, setPhotos] = useState<any[]>([]);
   const [investigation, setInvestigation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
@@ -32,6 +34,12 @@ export default function IncidentDetail() {
 
       const { data: witData } = await supabase.from('incident_witnesses').select('*').eq('incident_id', id);
       setWitnesses(witData || []);
+
+      const { data: vicData } = await supabase.from('incident_victims').select('*').eq('incident_id', id);
+      setVictims(vicData || []);
+
+      const { data: phoData } = await supabase.from('incident_photos').select('*').eq('incident_id', id);
+      setPhotos(phoData || []);
 
       const { data: invData } = await supabase.from('investigations').select('*').eq('incident_id', id).maybeSingle();
       setInvestigation(invData);
@@ -66,6 +74,51 @@ export default function IncidentDetail() {
         </div>
       </div>
 
+      {/* INVESTIGATION CARD - Moved to top */}
+      <div className="form-card mb-24">
+        <h3 className="form-section-title">Investigation</h3>
+        
+        {!investigation ? (
+          <div style={{ padding: '16px 0' }}>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>No investigation has been recorded for this incident yet.</p>
+            <Link 
+              to={`/incidents/${id}/investigation/new`} 
+              className="btn-primary" 
+              style={{ display: 'inline-flex', width: 'auto' }}
+            >
+              <Plus size={18} /> Start Investigation
+            </Link>
+          </div>
+        ) : (
+          <div>
+            <div className="form-grid mb-16">
+              <div className="form-group"><label>Method Used</label><input type="text" className="form-input" value={investigation.method_used} disabled /></div>
+              <div className="form-group"><label>Investigator</label><input type="text" className="form-input" value={investigation.investigator_name} disabled /></div>
+              <div className="form-group"><label>Date</label><input type="text" className="form-input" value={investigation.investigation_date} disabled /></div>
+              <div className="form-group"><label>Status</label><input type="text" className="form-input" value={investigation.status} disabled /></div>
+            </div>
+            
+            <div className="form-group mb-16"><label>Findings Summary</label><textarea className="form-input" rows={2} value={investigation.findings_summary || 'N/A'} disabled></textarea></div>
+            <div className="form-group mb-16"><label>Root Cause</label><textarea className="form-input" rows={2} value={investigation.root_cause || 'N/A'} disabled></textarea></div>
+            <div className="form-group mb-16"><label>Contributing Factors</label><textarea className="form-input" rows={2} value={investigation.contributing_factors || 'N/A'} disabled></textarea></div>
+            <div className="form-group mb-16"><label>Corrective/Preventive Actions</label><textarea className="form-input" rows={2} value={investigation.corrective_actions || 'N/A'} disabled></textarea></div>
+            
+            {investigation.report_url && (
+              <div className="mb-16">
+                <a href={investigation.report_url} target="_blank" rel="noreferrer" className="evidence-link">View Investigation Report</a>
+              </div>
+            )}
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Link to={`/incidents/${id}/investigation`} className="btn-secondary">
+                Edit Investigation
+              </Link>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* STATUS CARD */}
       <div className="form-card mb-24">
         <div className="status-update-row">
           <div>
@@ -81,74 +134,6 @@ export default function IncidentDetail() {
         </div>
       </div>
 
-
-       {/* --- INVESTIGATION SECTION --- */}
-      <div className="form-card">
-        <h3 className="form-section-title">Investigation</h3>
-        
-        {!investigation ? (
-          <div style={{ padding: '16px 0' }}>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>No investigation has been recorded for this incident yet.</p>
-            <Link 
-              to={`/incidents/${id}/investigation/new`} 
-              className="btn-primary" 
-              style={{ display: 'inline-flex', width: 'auto' }}
-            >
-              <Plus size={18} /> Start Investigation
-            </Link>
-          </div>
-
-        ) : (
-          <div>
-            <div className="form-grid mb-16">
-              <div className="form-group"><label>Method Used</label><input type="text" className="form-input" value={investigation.method_used} disabled /></div>
-              <div className="form-group"><label>Investigator</label><input type="text" className="form-input" value={investigation.investigator_name} disabled /></div>
-              <div className="form-group"><label>Date</label><input type="text" className="form-input" value={investigation.investigation_date} disabled /></div>
-              <div className="form-group"><label>Status</label><input type="text" className="form-input" value={investigation.status} disabled /></div>
-            </div>
-            
-            <div className="form-group mb-16"
-            >
-              <label>Findings Summary</label><textarea className="form-input" rows={2} value={investigation.findings_summary || 'N/A'} disabled></textarea>
-            </div>
-
-            <div className="form-group mb-16"
-            >
-              <label>
-                Root Cause
-              </label><textarea className="form-input" rows={2} value={investigation.root_cause || 'N/A'} disabled></textarea>
-            </div>
-
-            <div className="form-group mb-16">
-              <label>
-                Contributing Factors
-              </label>
-              <textarea className="form-input" rows={2} value={investigation.contributing_factors || 'N/A'} disabled></textarea>
-            </div>
-
-            <div className="form-group mb-16"><label>Corrective Actions</label><textarea className="form-input" rows={2} value={investigation.corrective_actions || 'N/A'} disabled></textarea></div>
-            
-            {investigation.report_url && (
-              <div className="mb-16">
-                <a href={investigation.report_url} target="_blank" rel="noreferrer" className="evidence-link">View Investigation Report</a>
-              </div>
-            )}
-            
-            <div 
-              style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px', border: 'none' }}
-              className="btn-secondary btn-hover-effect"
-            >
-              <Link to={`/incidents/${id}/investigation`} className="btn-secondary">
-                Edit Investigation
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
-
-
-
-
       <div className="form-card mb-24">
         <h3 className="form-section-title">Core Details</h3>
         <div className="form-grid">
@@ -163,27 +148,32 @@ export default function IncidentDetail() {
       <div className="form-card mb-24">
         <h3 className="form-section-title">Location & People</h3>
         <div className="form-grid">
+          <div className="form-group"><label>Site</label><input type="text" className="form-input" value={incident.site} disabled /></div>
+          <div className="form-group"><label>Area</label><input type="text" className="form-input" value={incident.area || 'N/A'} disabled /></div>
           <div className="form-group"><label>Activity / Task</label><input type="text" className="form-input" value={incident.activity || 'N/A'} disabled /></div>
-          <div className="form-group"><label>Victim Name</label><input type="text" className="form-input" value={incident.victim_name || 'N/A'} disabled /></div>
-          <div className="form-group"><label>Victim Role</label><input type="text" className="form-input" value={incident.victim_role || 'N/A'} disabled /></div>
-          <div className="form-group"><label>Victim Contact</label><input type="text" className="form-input" value={incident.victim_contact || 'N/A'} disabled /></div>
+          <div className="form-group"><label>Involved Item</label><input type="text" className="form-input" value={incident.involved_item || 'N/A'} disabled /></div>
         </div>
       </div>
 
+      {/* VICTIMS CARD */}
       <div className="form-card mb-24">
-        <h3 className="form-section-title">Actions & Regulatory</h3>
-        <div className="form-group"><label>Immediate Action Taken</label><textarea className="form-input" rows={3} value={incident.immediate_action} disabled></textarea></div>
-        <div className="form-grid mt-16">
-          <div className="form-group"><label>Reported to Regulator?</label><input type="text" className="form-input text-capitalize" value={incident.reported_to_regulator} disabled /></div>
-          {incident.reported_to_regulator === 'yes' && (
-            <>
-              <div className="form-group"><label>Regulator Notified Time</label><input type="text" className="form-input" value={incident.regulator_notified_time || 'N/A'} disabled /></div>
-              <div className="form-group"><label>Report Reference</label><input type="text" className="form-input" value={incident.regulator_ref_number || 'N/A'} disabled /></div>
-            </>
-          )}
-        </div>
+        <h3 className="form-section-title">Victims ({victims.length})</h3>
+        {victims.length === 0 ? (
+          <p className="no-witnesses">No victims recorded.</p>
+        ) : (
+          <div className="witness-list">
+            {victims.map((v, index) => (
+              <div key={v.id} className="witness-detail-card">
+                <h4>Victim #{index + 1}: {v.victim_name || 'Unnamed'}</h4>
+                <p><strong>Role:</strong> {v.victim_role || 'N/A'}</p>
+                <p><strong>Contact:</strong> {v.victim_contact || 'N/A'}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
+      {/* WITNESSES CARD */}
       <div className="form-card mb-24">
         <h3 className="form-section-title">Witnesses ({witnesses.length})</h3>
         {witnesses.length === 0 ? (
@@ -201,7 +191,36 @@ export default function IncidentDetail() {
         )}
       </div>
 
-     
+      {/* PHOTOS CARD */}
+      <div className="form-card mb-24">
+        <h3 className="form-section-title">Photos ({photos.length})</h3>
+        {photos.length === 0 ? (
+          <p className="no-witnesses">No photos attached.</p>
+        ) : (
+          <div className="photo-grid">
+            {photos.map((p, index) => (
+              <div key={p.id} className="photo-item">
+                <img src={p.photo_url} alt={`Photo ${index + 1}`} />
+                {p.caption && <p>{p.caption}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="form-card">
+        <h3 className="form-section-title">Actions & Regulatory</h3>
+        <div className="form-group"><label>Immediate Action Taken</label><textarea className="form-input" rows={3} value={incident.immediate_action} disabled></textarea></div>
+        <div className="form-grid mt-16"> 
+          <div className="form-group"><label>Reported to Regulator?</label><input type="text" className="form-input text-capitalize" value={incident.reported_to_regulator} disabled /></div>
+          {incident.reported_to_regulator === 'yes' && (
+            <>
+              <div className="form-group"><label>Regulator Notified Time</label><input type="text" className="form-input" value={incident.regulator_notified_time || 'N/A'} disabled /></div>
+              <div className="form-group"><label>Report Reference</label><input type="text" className="form-input" value={incident.regulator_ref_number || 'N/A'} disabled /></div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

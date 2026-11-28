@@ -134,6 +134,18 @@
 }
 
 
+.photo-upload-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  background-color: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+
 
 @media (max-width: 1024px) {
   .settings-grid {

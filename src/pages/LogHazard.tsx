@@ -10,12 +10,10 @@ export default function LogHazard() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // --- OBSERVER STATE ---
   const [observerName, setObserverName] = useState('');
   const [observerRole, setObserverRole] = useState('');
-
-  // --- HAZARD STATE ---
   const [entryType, setEntryType] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [site, setSite] = useState('');
   const [area, setArea] = useState('');
   const [description, setDescription] = useState('');
@@ -23,27 +21,38 @@ export default function LogHazard() {
   const [requiresCapa, setRequiresCapa] = useState(false);
   const [dateObserved, setDateObserved] = useState(new Date().toISOString().split('T')[0]);
 
-  // --- RISK SCORING STATE ---
   const [likelihood, setLikelihood] = useState(3);
   const [consequence, setConsequence] = useState(3);
   const riskScore = likelihood * consequence;
 
-  // --- FILE UPLOAD STATE ---
   const [existingFile, setExistingFile] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  // --- DYNAMIC SITES ---
-  const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
+  const [sitesList, setSitesList] = useState<{ id: string, name: string, project_id: string }[]>([]);
+  const [projectsList, setProjectsList] = useState<{ id: string, project_name: string }[]>([]);
   const [loading, setLoading] = useState(!!id);
 
   useEffect(() => {
-    const fetchSites = async () => {
-      const { data } = await supabase.from('sites').select('id, name').eq('status', 'active');
-      if (data) setSitesList(data);
+    const fetchData = async () => {
+      const { data: sitesData } = await supabase.from('sites').select('id, name, project_id').eq('status', 'active');
+      if (sitesData) setSitesList(sitesData);
+
+      const { data: projectsData } = await supabase.from('projects').select('id, project_name').eq('status', 'active');
+      if (projectsData) setProjectsList(projectsData);
     };
-    fetchSites();
+    fetchData();
     if (id) fetchHazard();
   }, [id]);
+
+  // Auto-fill project when site is selected
+  useEffect(() => {
+    if (site) {
+      const selectedSite = sitesList.find(s => s.name === site);
+      if (selectedSite && selectedSite.project_id) {
+        setProjectId(selectedSite.project_id);
+      }
+    }
+  }, [site, sitesList]);
 
   const fetchHazard = async () => {
     try {
@@ -53,6 +62,7 @@ export default function LogHazard() {
       setObserverName(data.observer_name || '');
       setObserverRole(data.observer_role || '');
       setEntryType(data.entry_type || '');
+      setProjectId(data.project_id || '');
       setSite(data.project_site || '');
       setArea(data.area || '');
       setDescription(data.description || '');
@@ -96,7 +106,7 @@ export default function LogHazard() {
 
       const payload = {
         observer_name: observerName, observer_role: observerRole,
-        entry_type: entryType, project_site: site, area: area, description: description,
+        entry_type: entryType, project_id: projectId || null, project_site: site, area: area, description: description,
         likelihood: entryType === 'Positive Observation' ? null : likelihood,
         consequence: entryType === 'Positive Observation' ? null : consequence,
         risk_score: entryType === 'Positive Observation' ? null : riskScore,
@@ -110,14 +120,12 @@ export default function LogHazard() {
         if (error) throw error;
         hazardId = data.id;
 
-        // Log to audit trail
         await supabase.from('audit_logs').insert([{
           module: 'Hazards',
           action: 'Logged Hazard',
           reference: `HAZ-${String(data.hazard_number).padStart(4, '0')}`
         }]);
 
-        // Auto-generate CAPA on new hazard if required
         if (requiresCapa) {
           await supabase.from('capa_actions').insert([{
             action_title: `Hazard: ${entryType}`, description: description,
@@ -131,7 +139,6 @@ export default function LogHazard() {
         const { error } = await supabase.from('hazards').update(payload).eq('id', hazardId);
         if (error) throw error;
 
-        // Log to audit trail
         await supabase.from('audit_logs').insert([{
           module: 'Hazards',
           action: 'Updated Hazard',
@@ -175,6 +182,13 @@ export default function LogHazard() {
             </select>
           </div>
           <div className="form-group"><label>Date Observed *</label><input type="date" className="form-input" value={dateObserved} onChange={(e) => setDateObserved(e.target.value)} /></div>
+          <div className="form-group">
+            <label>Project</label>
+            <select className="form-input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+              <option value="">Select Project...</option>
+              {projectsList.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+            </select>
+          </div>
           <div className="form-group">
             <label>Site *</label>
             <select className="form-input" value={site} onChange={(e) => setSite(e.target.value)}>

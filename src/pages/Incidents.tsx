@@ -15,6 +15,7 @@ interface Incident {
   date_of_occurrence: string;
   severity: string;
   area: string;
+  site: string;
   status: string;
 }
 
@@ -65,7 +66,7 @@ export default function Incidents() {
   // Filter logic
   const filteredIncidents = incidents.filter(inc => {
     const matchesStatus = statusFilter === 'All' || inc.status === statusFilter;
-    const matchesSite = siteFilter === 'All' || inc.area === siteFilter;
+    const matchesSite = siteFilter === 'All' || inc.site && inc.site === siteFilter;
     const matchesSearch = searchQuery === '' || 
       inc.incident_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
       inc.area.toLowerCase().includes(searchQuery.toLowerCase());

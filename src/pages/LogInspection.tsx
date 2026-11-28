@@ -17,45 +17,47 @@ interface Finding {
 }
 
 export default function LogInspection() {
-  // --- URL PARAMETERS ---
   const [searchParams] = useSearchParams();
   const prefillEquipment = searchParams.get('equipment');
   const prefillSite = searchParams.get('site');
 
-  // --- INSPECTOR STATE ---
   const [inspectorName, setInspectorName] = useState('');
   const [inspectorRole, setInspectorRole] = useState('');
   const [inspectorContact, setInspectorContact] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [time, setTime] = useState(new Date().toTimeString().slice(0, 5));
 
-  // --- INSPECTION STATE ---
   const [inspectionType, setInspectionType] = useState(prefillEquipment ? 'Plant & Equipment' : '');
+  const [projectId, setProjectId] = useState('');
   const [site, setSite] = useState(prefillSite || '');
   const [area, setArea] = useState('');
   const [weather, setWeather] = useState('');
   const [overallNotes, setOverallNotes] = useState(prefillEquipment ? `Inspection for: ${prefillEquipment}` : '');
 
-  const [inspectionTypes, setInspectionTypes] = useState<{ id: string, option_value: string }[]>([]);
-  const [findingTypes, setFindingTypes] = useState<{ id: string, option_value: string }[]>([]);
-
-  // --- CHILD STATE ---
   const [findings, setFindings] = useState<Finding[]>([]);
-  const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
+  const [sitesList, setSitesList] = useState<{ id: string, name: string, project_id: string }[]>([]);
+  const [projectsList, setProjectsList] = useState<{ id: string, project_name: string }[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: sitesData } = await supabase.from('sites').select('id, name').eq('status', 'active');
+      const { data: sitesData } = await supabase.from('sites').select('id, name, project_id').eq('status', 'active');
       if (sitesData) setSitesList(sitesData);
 
-      const { data: typeData } = await supabase.from('dropdown_options').select('id, option_value').eq('category', 'inspection_type').order('option_value');
-      if (typeData) setInspectionTypes(typeData);
-
-      const { data: findingData } = await supabase.from('dropdown_options').select('id, option_value').eq('category', 'finding_type').order('option_value');
-      if (findingData) setFindingTypes(findingData);
+      const { data: projectsData } = await supabase.from('projects').select('id, project_name').eq('status', 'active');
+      if (projectsData) setProjectsList(projectsData);
     };
     fetchData();
   }, []);
+
+  // Auto-fill project when site is selected
+  useEffect(() => {
+    if (site) {
+      const selectedSite = sitesList.find(s => s.name === site);
+      if (selectedSite && selectedSite.project_id) {
+        setProjectId(selectedSite.project_id);
+      }
+    }
+  }, [site, sitesList]);
 
   const addFinding = () => {
     setFindings([...findings, { 
@@ -85,7 +87,7 @@ export default function LogInspection() {
       const { data: inspectionData, error: inspectionError } = await supabase
         .from('inspections')
         .insert([{
-          inspection_type: inspectionType, site: site, area: area, date: date, time: time,
+          inspection_type: inspectionType, project_id: projectId || null, site: site, area: area, date: date, time: time,
           weather: weather, overall_notes: overallNotes, 
           inspector_name: inspectorName, inspector_role: inspectorRole, inspector_contact: inspectorContact
         }])
@@ -93,13 +95,6 @@ export default function LogInspection() {
         .single();
 
       if (inspectionError) throw inspectionError;
-      
-      // Log to audit trail
-      await supabase.from('audit_logs').insert([{
-        module: 'Inspections',
-        action: 'Completed Inspection',
-        reference: `INS-${String(inspectionData.inspection_number).padStart(4, '0')}`
-      }]);
 
       if (findings.length > 0) {
         const findingsData = [];
@@ -125,13 +120,6 @@ export default function LogInspection() {
         const { error: findingsError } = await supabase.from('inspection_findings').insert(findingsData);
         if (findingsError) throw findingsError;
 
-        // Log to audit trail
-        await supabase.from('audit_logs').insert([{
-          module: 'Inspections',
-          action: 'Completed Inspection',
-          reference: `INS-${String(inspectionData.inspection_number).padStart(4, '0')}`
-        }]);
-
         const capaFindings = findings.filter(f => f.requiresCapa);
         if (capaFindings.length > 0) {
           const capaData = capaFindings.map(f => ({
@@ -148,6 +136,12 @@ export default function LogInspection() {
         }
       }
 
+      await supabase.from('audit_logs').insert([{
+        module: 'Inspections',
+        action: 'Completed Inspection',
+        reference: `INS-${String(inspectionData.inspection_number).padStart(4, '0')}`
+      }]);
+
       alert("Inspection saved successfully!");
       window.location.href = '/inspections';
 
@@ -156,7 +150,7 @@ export default function LogInspection() {
     }
   };
 
-    return (
+  return (
     <div>
       <div className="page-header">
         <div className="header-left">
@@ -185,14 +179,24 @@ export default function LogInspection() {
         <div className="form-grid">
           <div className="form-group">
             <label>Inspection Type *</label>
-
             <select className="form-input" value={inspectionType} onChange={(e) => setInspectionType(e.target.value)}>
               <option value="">Select Type...</option>
-              {inspectionTypes.map((type) => (
-                <option key={type.id} value={type.option_value}>{type.option_value}</option>
-              ))}
+              <option value="Daily Walk">Daily Walk</option>
+              <option value="Scaffold Inspection">Scaffold Inspection</option>
+              <option value="Excavation Inspection">Excavation Inspection</option>
+              <option value="Fire Extinguisher Check">Fire Extinguisher Check</option>
+              <option value="PPE Compliance Check">PPE Compliance Check</option>
+              <option value="Housekeeping Inspection">Housekeeping Inspection</option>
+              <option value="Electrical Inspection">Electrical Inspection</option>
+              <option value="Plant & Equipment">Plant & Equipment</option>
             </select>
-
+          </div>
+          <div className="form-group">
+            <label>Project</label>
+            <select className="form-input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+              <option value="">Select Project...</option>
+              {projectsList.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+            </select>
           </div>
           <div className="form-group">
             <label>Site *</label>
@@ -205,7 +209,7 @@ export default function LogInspection() {
           <div className="form-group"><label>Weather</label><input type="text" className="form-input" placeholder="e.g., Sunny, Rainy" value={weather} onChange={(e) => setWeather(e.target.value)} /></div>
         </div>
 
-        <div className="mt-32">
+        <div className="findings-container mt-32">
           <div className="findings-header">
             <div><h3>3. Findings</h3><p>Add any hazards, defects, or issues found during the inspection.</p></div>
             <button type="button" onClick={addFinding} className="btn-primary btn-small"><Plus size={16} /> Add Finding</button>
@@ -222,15 +226,18 @@ export default function LogInspection() {
               <div className="form-grid">
                 <div className="form-group">
                   <label>Finding Type</label>
-                  
                   <select className="form-input" value={finding.findingType} onChange={(e) => updateFinding(finding.id, 'findingType', e.target.value)}>
                     <option value="">Select...</option>
-                    {findingTypes.map((type) => (
-                      <option key={type.id} value={type.option_value}>{type.option_value}</option>
-                    ))}
+                    <option value="Scaffold">Scaffold</option>
+                    <option value="PPE">PPE</option>
+                    <option value="Housekeeping">Housekeeping</option>
+                    <option value="Fire">Fire</option>
+                    <option value="Electrical">Electrical</option>
+                    <option value="Excavation">Excavation</option>
+                    <option value="Access / Egress">Access / Egress</option>
+                    <option value="Plant & Equipment">Plant & Equipment</option>
+                    <option value="Environment">Environment</option>
                   </select>
-
-
                 </div>
                 <div className="form-group">
                   <label>Severity</label>

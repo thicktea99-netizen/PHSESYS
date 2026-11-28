@@ -1,20 +1,27 @@
-// src/pages/LogIncident.tsx
+/* === LOG INCIDENT.TSX === */
+
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Trash2, Paperclip } from 'lucide-react';
+import { ArrowLeft,  } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import '../styles/LogIncident.css';
 
-interface Witness {
-  id: number;
-  name: string;
-  contact: string;
-  statement: string;
-}
+import VictimList from '../components/incidents/VictimList';
+
+import type {Victim} from '../components/incidents/VictimList';
+
+import WitnessList from '../components/incidents/WitnessList';
+
+import type { Witness } from '../components/incidents/WitnessList';
+
+import PhotoUploadList from '../components/incidents/PhotoUploadList';
+
+import type { PhotoFile } from '../components/incidents/PhotoUploadList';
+
+import '../styles/LogIncident.css';
 
 export default function LogIncident() {
   const [searchParams] = useSearchParams();
-  const prefillEquipment = searchParams.get('equipment');
+  
   const prefillSite = searchParams.get('site');
 
   const [incidentType, setIncidentType] = useState('');
@@ -25,59 +32,51 @@ export default function LogIncident() {
   const [time, setTime] = useState('');
   const [description, setDescription] = useState('');
   
-  const [projectId, setProjectId] = useState('');
   const [site, setSite] = useState(prefillSite || '');
   const [area, setArea] = useState('');
   const [involvedItem, setInvolvedItem] = useState('');
   const [activity, setActivity] = useState('');
-  
-  const [victimName, setVictimName] = useState('');
-  const [victimRole, setVictimRole] = useState('');
-  const [victimContact, setVictimContact] = useState('');
 
   const [immediateAction, setImmediateAction] = useState('');
   const [reportedToRegulator, setReportedToRegulator] = useState('no');
   const [regulatorTime, setRegulatorTime] = useState('');
   const [regulatorRef, setRegulatorRef] = useState('');
   
-  const [witnesses, setWitnesses] = useState<Witness[]>([]);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [sitesList, setSitesList] = useState<{ id: string, name: string }[]>([]);
   const [vehicleAffiliation, setVehicleAffiliation] = useState('company');
 
-  const [sitesList, setSitesList] = useState<{ id: string, name: string, project_id: string }[]>([]);
-  const [projectsList, setProjectsList] = useState<{ id: string, project_name: string }[]>([]);
+  // Dynamic lists
+  const [victims, setVictims] = useState<Victim[]>([]);
+  const [witnesses, setWitnesses] = useState<Witness[]>([]);
+  const [photos, setPhotos] = useState<PhotoFile[]>([]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      const { data: sitesData } = await supabase.from('sites').select('id, name, project_id').eq('status', 'active');
+    const fetchSites = async () => {
+      const { data: sitesData } = await supabase.from('sites').select('id, name').eq('status', 'active');
       if (sitesData) setSitesList(sitesData);
-
-      const { data: projectsData } = await supabase.from('projects').select('id, project_name').eq('status', 'active');
-      if (projectsData) setProjectsList(projectsData);
     };
-    fetchData();
+    fetchSites();
   }, []);
 
-  // Auto-fill project when site is selected
-  useEffect(() => {
-    if (site) {
-      const selectedSite = sitesList.find(s => s.name === site);
-      if (selectedSite && selectedSite.project_id) {
-        setProjectId(selectedSite.project_id);
-      }
-    }
-  }, [site, sitesList]);
-
-  const addWitness = () => {
-    setWitnesses([...witnesses, { id: Date.now(), name: '', contact: '', statement: '' }]);
+  // Victim handlers
+  const addVictim = () => setVictims([...victims, { id: Date.now(), name: '', role: '', contact: '' }]);
+  const removeVictim = (id: number) => setVictims(victims.filter(v => v.id !== id));
+  const updateVictim = (id: number, field: keyof Victim, value: string) => {
+    setVictims(victims.map(v => v.id === id ? { ...v, [field]: value } : v));
   };
 
-  const removeWitness = (id: number) => {
-    setWitnesses(witnesses.filter(w => w.id !== id));
-  };
-
+  // Witness handlers
+  const addWitness = () => setWitnesses([...witnesses, { id: Date.now(), name: '', contact: '', statement: '' }]);
+  const removeWitness = (id: number) => setWitnesses(witnesses.filter(w => w.id !== id));
   const updateWitness = (id: number, field: keyof Witness, value: string) => {
     setWitnesses(witnesses.map(w => w.id === id ? { ...w, [field]: value } : w));
+  };
+
+  // Photo handlers
+  const addPhoto = () => setPhotos([...photos, { id: Date.now(), file: null, caption: '' }]);
+  const removePhoto = (id: number) => setPhotos(photos.filter(p => p.id !== id));
+  const updatePhoto = (id: number, field: keyof PhotoFile, value: any) => {
+    setPhotos(photos.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
 
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -98,14 +97,16 @@ export default function LogIncident() {
       return;
     }
 
-    if (victimContact && victimContact.length !== 10) {
-      alert("Victim contact number must be exactly 10 digits.");
-      return;
+    for (const victim of victims) {
+      if (victim.contact && victim.contact.length !== 10) {
+        alert(`Victim contact must be 10 digits for ${victim.name || 'Unnamed'}`);
+        return;
+      }
     }
 
     for (const witness of witnesses) {
       if (witness.contact && witness.contact.length !== 10) {
-        alert(`Please enter a valid 10-digit phone number for witness: ${witness.name || 'Unnamed'}`);
+        alert(`Witness contact must be 10 digits for ${witness.name || 'Unnamed'}`);
         return;
       }
     }
@@ -121,14 +122,10 @@ export default function LogIncident() {
           reporter_name: reporterName,
           reporter_role: reporterRole,
           description: description,
-          project_id: projectId || null,
           site: site,
           area: area,
           involved_item: involvedItem,
           activity: activity,
-          victim_name: victimName || null,
-          victim_role: victimRole || null,
-          victim_contact: victimContact || null,
           immediate_action: immediateAction,
           reported_to_regulator: reportedToRegulator,
           regulator_notified_time: regulatorTime || null,
@@ -139,6 +136,19 @@ export default function LogIncident() {
 
       if (incidentError) throw incidentError;
 
+      // Save victims
+      if (victims.length > 0) {
+        const victimData = victims.map(v => ({
+          incident_id: incidentData.id,
+          victim_name: v.name,
+          victim_role: v.role,
+          victim_contact: v.contact
+        }));
+        const { error: victimError } = await supabase.from('incident_victims').insert(victimData);
+        if (victimError) throw victimError;
+      }
+
+      // Save witnesses
       if (witnesses.length > 0) {
         const witnessData = witnesses.map(w => ({
           incident_id: incidentData.id,
@@ -146,16 +156,25 @@ export default function LogIncident() {
           contact: w.contact,
           statement: w.statement
         }));
-        
         const { error: witnessError } = await supabase.from('incident_witnesses').insert(witnessData);
         if (witnessError) throw witnessError;
       }
 
-      if (selectedFile) {
-        const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `${incidentData.id}-${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from('incident-attachments').upload(fileName, selectedFile);
-        if (uploadError) throw uploadError;
+      // Upload photos
+      for (const photo of photos) {
+        if (photo.file) {
+          const fileExt = photo.file.name.split('.').pop();
+          const fileName = `incident-${incidentData.id}-${Date.now()}.${fileExt}`;
+          const { error: uploadError } = await supabase.storage.from('inspection-photos').upload(fileName, photo.file);
+          if (uploadError) throw uploadError;
+          const { data: urlData } = supabase.storage.from('inspection-photos').getPublicUrl(fileName);
+          
+          await supabase.from('incident_photos').insert([{
+            incident_id: incidentData.id,
+            photo_url: urlData.publicUrl,
+            caption: photo.caption
+          }]);
+        }
       }
 
       await supabase.from('audit_logs').insert([{
@@ -177,7 +196,7 @@ export default function LogIncident() {
       <div className="page-header">
         <div className="header-left">
           <Link to="/incidents" className="back-link"><ArrowLeft size={24} /></Link>
-          <div><h1>Log New Incident</h1><p className="page-subtitle">Record a new incident or near-miss.</p></div>
+          <div><h1>Log New Incident</h1><p className="page-subtitle">Record a new incident.</p></div>
         </div>
       </div>
 
@@ -219,13 +238,6 @@ export default function LogIncident() {
         <h3 className="form-section-title mt-32">2. Location & People</h3>
         <div className="form-grid">
           <div className="form-group">
-            <label>Project</label>
-            <select className="form-input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-              <option value="">Select Project...</option>
-              {projectsList.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
             <label>Site *</label>
             <select className="form-input" value={site} onChange={(e) => setSite(e.target.value)}>
               <option value="">Select Site...</option>
@@ -250,44 +262,19 @@ export default function LogIncident() {
           <div className="form-group"><label>Activity / Task at Time of Incident</label><input type="text" className="form-input" placeholder="e.g., Welding rebar couplers" value={activity} onChange={(e) => setActivity(e.target.value)} /></div>
         </div>
 
-        <div className="findings-container mt-16">
-          <div className="findings-header">
-            <div>
-              <h3>Victim Details (if applicable)</h3>
-              <p>Record the name, role, and contact of the person involved.</p>
-            </div>
-          </div>
-          <div className="form-grid">
-            <div className="form-group"><label>Victim Name</label><input type="text" className="form-input" placeholder="Full name" value={victimName} onChange={(e) => setVictimName(e.target.value)} /></div>
-            <div className="form-group"><label>Victim Role / Company</label><input type="text" className="form-input" placeholder="e.g., Visitor, Client, Worker" value={victimRole} onChange={(e) => setVictimRole(e.target.value)} /></div>
-            <div className="form-group">
-              <label>Victim Contact</label>
-              <input type="tel" className="form-input" placeholder="10-digit Contact" value={victimContact} onChange={(e) => {
-                const numericValue = e.target.value.replace(/\D/g, '');
-                if (numericValue.length <= 10) setVictimContact(numericValue);
-              }} />
-            </div>
-          </div>
-        </div>
+        <VictimList 
+          victims={victims} 
+          onAdd={addVictim} 
+          onRemove={removeVictim} 
+          onUpdate={updateVictim} 
+        />
 
-        <div className="witness-container">
-          <div className="witness-header">
-            <h4>Witnesses</h4>
-            <button type="button" onClick={addWitness} className="btn-secondary btn-small"><Plus size={14} /> Add Witness</button>
-          </div>
-          {witnesses.length === 0 && <p className="no-witnesses">No witnesses added yet.</p>}
-          {witnesses.map((witness) => (
-            <div key={witness.id} className="witness-row">
-              <input type="text" className="form-input" placeholder="Name" value={witness.name} onChange={(e) => updateWitness(witness.id, 'name', e.target.value)} />
-              <input type="tel" className="form-input" placeholder="10-digit Contact" value={witness.contact} onChange={(e) => {
-                const numericValue = e.target.value.replace(/\D/g, '');
-                if (numericValue.length <= 10) updateWitness(witness.id, 'contact', numericValue);
-              }} />
-              <input type="text" className="form-input" placeholder="Brief statement" value={witness.statement} onChange={(e) => updateWitness(witness.id, 'statement', e.target.value)} />
-              <button type="button" onClick={() => removeWitness(witness.id)} className="btn-icon danger"><Trash2 size={18} /></button>
-            </div>
-          ))}
-        </div>
+        <WitnessList 
+          witnesses={witnesses} 
+          onAdd={addWitness} 
+          onRemove={removeWitness} 
+          onUpdate={updateWitness} 
+        />
 
         {isSpecificDetailsVisible && (<h3 className="form-section-title mt-32">3. Specific Details</h3>)}
 
@@ -371,14 +358,12 @@ export default function LogIncident() {
         </div>
 
         <h3 className="form-section-title mt-32">{attachmentsSectionNumber}. Attachments</h3>
-        <div className="upload-container">
-          <input type="file" id="file-upload" className="hidden-input" onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)} />
-          <label htmlFor="file-upload" className="upload-label">
-            <Paperclip size={24} color="var(--text-muted)" />
-            <span className="upload-text">{selectedFile ? selectedFile.name : "Click to upload photos or documents"}</span>
-            <span className="upload-hint">PNG, JPG, PDF up to 10MB</span>
-          </label>
-        </div>
+        <PhotoUploadList 
+          photos={photos}
+          onAdd={addPhoto}
+          onRemove={removePhoto}
+          onUpdate={updatePhoto}
+        />
       </div>
 
       <div className="sticky-action-bar">

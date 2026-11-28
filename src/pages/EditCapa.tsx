@@ -19,13 +19,21 @@ export default function EditCapa() {
   const [owner, setOwner] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [status, setStatus] = useState('open');
+  const [projectId, setProjectId] = useState('');
   const [existingFile, setExistingFile] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [projectsList, setProjectsList] = useState<{ id: string, project_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchAction();
+    fetchProjects();
   }, [id]);
+
+  const fetchProjects = async () => {
+    const { data } = await supabase.from('projects').select('id, project_name').eq('status', 'active');
+    if (data) setProjectsList(data);
+  };
 
   const fetchAction = async () => {
     try {
@@ -40,6 +48,7 @@ export default function EditCapa() {
       setOwner(data.owner);
       setDueDate(data.due_date);
       setStatus(data.status);
+      setProjectId(data.project_id || '');
       setExistingFile(data.evidence_url || '');
     } catch (error: any) {
       alert("Error loading action: " + error.message);
@@ -71,7 +80,8 @@ export default function EditCapa() {
         .update({
           action_title: title, description, source_type: sourceType,
           source_reference: sourceRef, action_type: actionType,
-          priority, owner, due_date: dueDate, status, evidence_url: evidenceUrl
+          priority, owner, due_date: dueDate, status, project_id: projectId || null,
+          evidence_url: evidenceUrl
         })
         .eq('id', id);
 
@@ -111,6 +121,13 @@ export default function EditCapa() {
 
         <h3 className="form-section-title mt-32">3. Assignment & Status</h3>
         <div className="form-grid">
+          <div className="form-group">
+            <label>Project</label>
+            <select className="form-input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+              <option value="">Select Project...</option>
+              {projectsList.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+            </select>
+          </div>
           <div className="form-group"><label>Owner *</label><input type="text" className="form-input" value={owner} onChange={(e) => setOwner(e.target.value)} /></div>
           <div className="form-group"><label>Due Date *</label><input type="date" className="form-input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
           <div className="form-group"><label>Status</label><select className="form-input" value={status} onChange={(e) => setStatus(e.target.value)}><option value="open">Open</option><option value="in progress">In Progress</option><option value="closed">Closed</option></select></div>

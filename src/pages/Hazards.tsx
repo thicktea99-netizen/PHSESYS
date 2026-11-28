@@ -19,6 +19,7 @@ interface Hazard {
   date_observed: string;
   status: string;
   photo_url: string;
+  
 }
 
 export default function Hazards() {
@@ -36,17 +37,21 @@ export default function Hazards() {
   }, []);
 
   const fetchHazards = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase.from('hazards').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      setHazards(data || []);
-    } catch (error: any) {
-      alert("Error fetching hazards: " + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('hazards')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    setHazards(data || []);
+  } catch (error: any) {
+    alert("Error fetching hazards: " + error.message);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const fetchSites = async () => {
     const { data } = await supabase.from('sites').select('id, name').eq('status', 'active');

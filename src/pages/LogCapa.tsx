@@ -1,5 +1,5 @@
 // src/pages/LogCapa.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -15,6 +15,16 @@ export default function LogCapa() {
   const [priority, setPriority] = useState('Medium');
   const [owner, setOwner] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [projectsList, setProjectsList] = useState<{ id: string, project_name: string }[]>([]);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      const { data } = await supabase.from('projects').select('id, project_name').eq('status', 'active');
+      if (data) setProjectsList(data);
+    };
+    fetchProjects();
+  }, []);
 
   const handleSave = async () => {
     if (!title || !sourceType || !owner || !dueDate) {
@@ -34,14 +44,12 @@ export default function LogCapa() {
           priority: priority,
           owner: owner,
           due_date: dueDate,
+          project_id: projectId || null,
           status: 'open'
-        }])
-        .select()
-        .single();
+        }]);
 
       if (error) throw error;
 
-      // Log to audit trail
       await supabase.from('audit_logs').insert([{
         module: 'CAPA',
         action: 'Raised CAPA Action',
@@ -94,6 +102,13 @@ export default function LogCapa() {
 
         <h3 className="form-section-title mt-32">3. Assignment</h3>
         <div className="form-grid">
+          <div className="form-group">
+            <label>Project</label>
+            <select className="form-input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+              <option value="">Select Project...</option>
+              {projectsList.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+            </select>
+          </div>
           <div className="form-group"><label>Action Owner *</label><input type="text" className="form-input" placeholder="e.g., ABC Scaffolding Supervisor" value={owner} onChange={(e) => setOwner(e.target.value)} /></div>
           <div className="form-group"><label>Due Date *</label><input type="date" className="form-input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
         </div>
